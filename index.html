@@ -982,7 +982,7 @@ function rejectOrder(id) {
   const steps = getSteps(o.amount);
   o.status = "Rejected";
   o.history.push({action:"Request rejected", detail:`Rejected by You${reason ? ": "+reason : ""}`, time:nowStr(), color:"red"});
-  o.messages.push({id:Date.now(), from:"You", time:nowStr(), text:`✕ Request rejected${reason ? ": "+reason : "."}`});
+  o.messages.push({id:Date.now(), from:currentUser||"You", time:nowStr(), text:`✕ Request rejected${reason ? ": "+reason : "."}`});
   updateOrder(o);
   renderList();
   renderDetail(o);
@@ -998,7 +998,7 @@ function sendMsg(id) {
   if (!text) return;
   const o = orders.find(x => x.id === id);
   if (!o) return;
-  const msg = {id:Date.now(), from:"You", time:nowStr(), text};
+  const msg = {id:Date.now(), from:currentUser||"You", time:nowStr(), text};
   o.messages.push(msg);
   box.value = "";
   const ml = document.getElementById("msgList");
