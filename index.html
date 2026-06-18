@@ -986,13 +986,32 @@ function rejectOrder(id) {
   const o = orders.find(x => x.id === id);
   if (!o) return;
   const reason = prompt("Reason for rejection (optional):");
-  const steps = getSteps(o.amount);
+  const rejector = currentUser || "You";
   o.status = "Rejected";
-  o.history.push({action:"Request rejected", detail:`Rejected by You${reason ? ": "+reason : ""}`, time:nowStr(), color:"red"});
-  o.messages.push({id:Date.now(), from:currentUser||"You", time:nowStr(), text:`✕ Request rejected${reason ? ": "+reason : "."}`});
+  o.history.push({action:"Request rejected", detail:`Rejected by ${rejector}${reason ? ": "+reason : ""}`, time:nowStr(), color:"red"});
+  o.messages.push({id:Date.now(), from:rejector, time:nowStr(), text:`✕ Request rejected${reason ? ": "+reason : "."}`});
   updateOrder(o);
   renderList();
   renderDetail(o);
+
+  // DM the submitter privately
+  const submitterId = SLACK_USERS[o.submittedBy];
+  if (submitterId) {
+    const trackerLink = `${TRACKER_URL}?request=${o.id}`;
+    fetch("/notify-dm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        channel: submitterId,
+        text: `Your prepayment request ${o.id} has been rejected`,
+        blocks: [
+          { type: "header", text: { type: "plain_text", text: "❌ Prepayment Request Rejected", emoji: true } },
+          { type: "section", text: { type: "mrkdwn", text: `Hi ${o.submittedBy}, your prepayment request *${o.id}* for *${o.summary}* (${fmt(o.amount)}) has been rejected by *${rejector}*.${reason ? `\n\n*Reason:* ${reason}` : ""}` } },
+          { type: "actions", elements: [{ type: "button", text: { type: "plain_text", text: "View & Resubmit", emoji: true }, url: trackerLink }] }
+        ]
+      }),
+    }).catch(() => {});
+  }
 }
 
 // ── CONVERSATION ──────────────────────────────────────────────────────────────
@@ -1005,8 +1024,10 @@ function sendMsg(id) {
   if (!text) return;
   const o = orders.find(x => x.id === id);
   if (!o) return;
-  const msg = {id:Date.now(), from:currentUser||"You", time:nowStr(), text};
+  const sender = currentUser || "You";
+  const msg = {id:Date.now(), from:sender, time:nowStr(), text};
   o.messages.push(msg);
+  updateOrder(o);
   box.value = "";
   const ml = document.getElementById("msgList");
   const div = document.createElement("div");
@@ -1014,6 +1035,36 @@ function sendMsg(id) {
   ml.appendChild(div.firstChild);
   ml.scrollTop = ml.scrollHeight;
   document.getElementById("msgCount").textContent = o.messages.length;
+
+  // Ping everyone involved: submitter + accountants + approvers for this amount
+  const trackerLink = `${TRACKER_URL}?request=${o.id}`;
+  const approvers = getApproversForAmount(o.amount);
+  const pingIds = new Set();
+  // Submitter
+  const submitterId = SLACK_USERS[o.submittedBy];
+  if (submitterId) pingIds.add(submitterId);
+  // Accountants (Palmer + Jenny + Joanne)
+  KNOWN_APPROVERS.forEach(a => pingIds.add(a.id));
+  // Approvers for this request's amount
+  approvers.forEach(a => pingIds.add(a.id));
+  // Don't ping the sender themselves
+  const senderId = SLACK_USERS[sender] || currentUserId;
+  pingIds.delete(senderId);
+
+  pingIds.forEach(uid => {
+    fetch("/notify-dm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        channel: uid,
+        text: `New message on prepayment request ${o.id} from ${sender}`,
+        blocks: [
+          { type: "section", text: { type: "mrkdwn", text: `💬 *${sender}* left a message on *${o.id} — ${o.summary}* (${fmt(o.amount)}):\n\n_"${text}"_` } },
+          { type: "actions", elements: [{ type: "button", text: { type: "plain_text", text: "View Conversation", emoji: true }, url: trackerLink }] }
+        ]
+      }),
+    }).catch(() => {});
+  });
 }
 
 // ── MODAL: ROUTE PREVIEW ──────────────────────────────────────────────────────
