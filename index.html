@@ -450,6 +450,7 @@ const AVATARS = {
   "Dana L.":   { initials:"DL", color:"#d97706" },
   "James P.":  { initials:"JP", color:"#059669" },
   "You":          { initials:"YP", color:"#0052cc" },
+  "Bot":          { initials:"BOT", color:"#475569" },
   "Palmer Yee":   { initials:"PY", color:"#0052cc" },
   "Jenny Xie":    { initials:"JX", color:"#7c3aed" },
   "Joanne Zhong": { initials:"JZ", color:"#059669" },
@@ -980,7 +981,7 @@ function createOrder() {
     approvalStep:1, unread:0,
     attachments,
     history:[{action:"Request submitted", detail:"Submitted by You", time:nowStr(), color:"grey"}],
-    messages:[{id:1, from:"You", time:nowStr(),
+    messages:[{id:1, from:"Bot", time:nowStr(),
       text:`New prepayment request submitted: ${summary} — ${fmt(amount)}. Approval route: ${route.approvers.join(" → ")}.`}],
   };
 
