@@ -449,7 +449,10 @@ const AVATARS = {
   "Marcus T.": { initials:"MT", color:"#0891b2" },
   "Dana L.":   { initials:"DL", color:"#d97706" },
   "James P.":  { initials:"JP", color:"#059669" },
-  "You":       { initials:"YP", color:"#0052cc" },
+  "You":          { initials:"YP", color:"#0052cc" },
+  "Palmer Yee":   { initials:"PY", color:"#0052cc" },
+  "Jenny Xie":    { initials:"JX", color:"#7c3aed" },
+  "Joanne Zhong": { initials:"JZ", color:"#059669" },
 };
 
 // ── DATA (loaded from Supabase via server) ────────────────────────────────────
@@ -752,7 +755,7 @@ function approveStep(id) {
   const approverWho = getStepApprover(o);
   const approverName = approverWho ? approverWho.name : "You";
   o.history.push({action:`${stepName} approved`, detail:`Approved by ${approverName}`, time:nowStr(), color:"green"});
-  o.messages.push({id:Date.now(), from:"You", time:nowStr(), text:`✓ Approved at the "${stepName}" stage by ${approverName}.`});
+  o.messages.push({id:Date.now(), from:approverName, time:nowStr(), text:`✓ Approved at the "${stepName}" stage.`});
   o.approvalStep++;
   o.status = o.approvalStep >= steps.length ? "Approved" : "In Review";
   updateOrder(o);
