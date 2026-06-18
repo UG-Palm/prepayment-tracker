@@ -1005,8 +1005,10 @@ function rejectOrder(id) {
   renderList();
   renderDetail(o);
 
-  // DM the submitter privately
-  const submitterId = SLACK_USERS[o.submittedBy];
+  // DM the submitter privately — look up by name, known approvers list, or current user ID
+  const submitterId = SLACK_USERS[o.submittedBy]
+    || KNOWN_APPROVERS.find(a => a.name === o.submittedBy)?.id
+    || (o.submittedBy === "You" ? currentUserId : null);
   if (submitterId) {
     const trackerLink = `${TRACKER_URL}?request=${o.id}`;
     fetch("/notify-dm", {
