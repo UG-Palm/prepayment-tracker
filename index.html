@@ -1208,32 +1208,56 @@ function sendApprovalNotification(order, stepName, isFullyApproved) {
     body: JSON.stringify(channelPayload),
   }).catch(() => {});
 
-  // DM the submitter if we have their Slack ID
-  const submitterId = SLACK_USERS[order.submittedBy];
-  if (submitterId && isFullyApproved) {
-    const dmPayload = {
-      channel: submitterId,
-      text: `✅ Your prepayment request has been fully approved!`,
-      blocks: [
-        {
-          type: "header",
-          text: { type: "plain_text", text: "✅ Your Request Has Been Approved!", emoji: true }
-        },
-        {
-          type: "section",
-          text: { type: "mrkdwn", text: `Hi ${order.submittedBy} — your prepayment request *${order.id}* for *${vendor}* (${fmt(order.amount)}) has completed all approval steps and is ready for payment processing.` }
-        },
-        {
-          type: "actions",
-          elements: [{ type: "button", text: { type: "plain_text", text: "🔗 View Request", emoji: true }, style: "primary", url: trackerLink }]
-        }
-      ]
-    };
-    fetch("/notify-dm", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(dmPayload),
-    }).catch(() => {});
+  if (isFullyApproved) {
+    // DM the submitter
+    const submitterId = SLACK_USERS[order.submittedBy];
+    if (submitterId) {
+      fetch("/notify-dm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          channel: submitterId,
+          text: `✅ Your prepayment request has been fully approved!`,
+          blocks: [
+            { type: "header", text: { type: "plain_text", text: "✅ Your Request Has Been Approved!", emoji: true } },
+            { type: "section", text: { type: "mrkdwn", text: `Hi ${order.submittedBy} — your prepayment request *${order.id}* for *${vendor}* (${fmt(order.amount)}) has completed all approval steps and is ready for payment processing.` } },
+            { type: "actions", elements: [{ type: "button", text: { type: "plain_text", text: "🔗 View Request", emoji: true }, style: "primary", url: trackerLink }] }
+          ]
+        }),
+      }).catch(() => {});
+    }
+
+    // DM Palmer Yee and Jenny Xie — they process the actual payment
+    const paymentProcessors = [APPROVERS.srDir, APPROVERS.cmo]; // Palmer Yee, Jenny Xie
+    paymentProcessors.forEach(person => {
+      fetch("/notify-dm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          channel: person.id,
+          text: `💳 Prepayment ${order.id} is fully approved and ready for payment`,
+          blocks: [
+            { type: "header", text: { type: "plain_text", text: "💳 Prepayment Ready for Processing", emoji: true } },
+            {
+              type: "section",
+              text: { type: "mrkdwn", text: `All approvals are complete for the following prepayment request. Please proceed with payment.` }
+            },
+            {
+              type: "section",
+              fields: [
+                { type: "mrkdwn", text: `*Request ID:*\n${order.id}` },
+                { type: "mrkdwn", text: `*Vendor:*\n${vendor}` },
+                { type: "mrkdwn", text: `*Pre-Payment Amount:*\n${fmt(order.amount)}` },
+                { type: "mrkdwn", text: `*PO Number:*\n${order.po}` },
+                { type: "mrkdwn", text: `*Submitted By:*\n${order.submittedBy}` },
+              ]
+            },
+            { type: "divider" },
+            { type: "actions", elements: [{ type: "button", text: { type: "plain_text", text: "🔗 View Request", emoji: true }, style: "primary", url: trackerLink }] }
+          ]
+        }),
+      }).catch(() => {});
+    });
   }
 
   showToast(isFullyApproved ? "✅ Approval notifications sent" : `🔄 Step approval notified`, "success");
