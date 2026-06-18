@@ -947,6 +947,12 @@ function createOrder() {
     alert("Please fill in all required fields (marked with *)."); return;
   }
 
+  const duplicate = orders.find(x => x.po.trim().toLowerCase() === po.toLowerCase());
+  if (duplicate) {
+    alert(`A request with PO number "${po}" already exists (${duplicate.id} — ${duplicate.summary}).\n\nIf this is a separate shipment, append a suffix such as "${po}-1" or "${po}-2".`);
+    return;
+  }
+
   const id = "PPR-" + String(Math.floor(Math.random()*900)+100).padStart(4,"0");
   const orderValue = parseFloat(document.getElementById("nOrderValue").value) || amount;
   const delivery   = document.getElementById("nDelivery").value || "TBD";
@@ -980,7 +986,15 @@ function saveEdit() {
   const o = orders.find(x => x.id === editingId);
   if (!o) return;
   o.summary      = document.getElementById("nSummary").value.trim() || o.summary;
-  o.po           = document.getElementById("nPO").value.trim() || o.po;
+  const newPO = document.getElementById("nPO").value.trim();
+  if (newPO && newPO.toLowerCase() !== o.po.toLowerCase()) {
+    const dupPO = orders.find(x => x.id !== o.id && x.po.trim().toLowerCase() === newPO.toLowerCase());
+    if (dupPO) {
+      alert(`A request with PO number "${newPO}" already exists (${dupPO.id} — ${dupPO.summary}).\n\nIf this is a separate shipment, append a suffix such as "${newPO}-1" or "${newPO}-2".`);
+      return;
+    }
+  }
+  o.po           = newPO || o.po;
   o.amount       = parseFloat(document.getElementById("nAmount").value) || o.amount;
   o.orderValue   = parseFloat(document.getElementById("nOrderValue").value) || o.orderValue;
   o.prepayPct    = parseFloat(document.getElementById("nPrepayPct").value) || o.prepayPct;
