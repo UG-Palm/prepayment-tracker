@@ -868,6 +868,10 @@ function setFilter(f, el) {
 function filterOrders() { renderList(); }
 
 // ── APPROVAL ACTIONS ──────────────────────────────────────────────────────────
+function botMsg(o, text) {
+  o.messages.push({id:Date.now(), from:"Bot", time:nowStr(), text});
+}
+
 function approveStep(id) {
   const o = orders.find(x => x.id === id);
   if (!o) return;
@@ -879,6 +883,12 @@ function approveStep(id) {
   o.messages.push({id:Date.now(), from:approverName, time:nowStr(), text:`✓ Approved at the "${stepName}" stage.`});
   o.approvalStep++;
   o.status = o.approvalStep >= steps.length - 1 ? "Approved" : "In Review";
+  if (o.status === "Approved") {
+    botMsg(o, `🎉 This PO has been fully approved. Payment can now be processed.`);
+  } else {
+    const next = getStepApprover(o);
+    if (next) botMsg(o, `⏳ Waiting for approval from ${next.name}.`);
+  }
   updateOrder(o);
   sendApprovalNotification(o, stepName, o.status === "Approved");
   // DM the next required approver now that it's their turn
@@ -990,6 +1000,7 @@ function rejectOrder(id) {
   o.status = "Rejected";
   o.history.push({action:"Request rejected", detail:`Rejected by ${rejector}${reason ? ": "+reason : ""}`, time:nowStr(), color:"red"});
   o.messages.push({id:Date.now(), from:rejector, time:nowStr(), text:`✕ Request rejected${reason ? ": "+reason : "."}`});
+  botMsg(o, `❌ This PO was rejected by ${rejector}.${reason ? ` Reason: "${reason}"` : ""} The submitter can edit and resubmit.`);
   updateOrder(o);
   renderList();
   renderDetail(o);
@@ -1193,8 +1204,10 @@ function createOrder() {
     approvalStep:1, unread:0,
     attachments,
     history:[{action:"Request submitted", detail:"Submitted by You", time:nowStr(), color:"grey"}],
-    messages:[{id:1, from:"Bot", time:nowStr(),
-      text:`New prepayment request submitted: ${summary} — ${fmt(amount)}. Approval route: ${route.approvers.join(" → ")}.`}],
+    messages:[
+      {id:1, from:"Bot", time:nowStr(), text:`📋 New prepayment request submitted: ${summary} — ${fmt(amount)}.`},
+      {id:2, from:"Bot", time:nowStr(), text:`⏳ Waiting for approval from ${route.approvers[0]}.`},
+    ],
   };
 
   orders.unshift(newOrder);
@@ -1232,9 +1245,16 @@ function saveEdit() {
   const freqEl = document.querySelector("input[name='freq']:checked");
   if (freqEl) o.frequency = freqEl.value;
   if (pendingFile) o.attachments.push(pendingFile);
+  const wasRejected = o.status === "Rejected";
   // if editing a rejected request, reset to pending
-  if (o.status === "Rejected") { o.status = "Pending"; o.approvalStep = 1; }
-  o.history.push({action:"Request edited", detail:"Updated by You", time:nowStr(), color:"grey"});
+  if (wasRejected) { o.status = "Pending"; o.approvalStep = 1; }
+  const editor = currentUser || "You";
+  o.history.push({action:"Request edited", detail:`Updated by ${editor}`, time:nowStr(), color:"grey"});
+  botMsg(o, `✏️ This PO was edited by ${editor}.`);
+  if (wasRejected) {
+    const firstApprover = getApproversForAmount(o.amount)[0];
+    botMsg(o, `🔄 PO has been resubmitted and is now waiting for approval from ${firstApprover ? firstApprover.name : "the approver"}.`);
+  }
   updateOrder(o);
   closeNewModal();
   renderList();
