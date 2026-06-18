@@ -1259,7 +1259,7 @@ function sendSlackNotification(order) {
           { type: "mrkdwn", text: `*Pre-Payment %:*\n${order.prepayPct}%` },
           { type: "mrkdwn", text: `*Category:*\n${order.category}` },
           { type: "mrkdwn", text: `*Requested Delivery:*\n${order.delivery || "TBD"}` },
-          { type: "mrkdwn", text: `*Submitted By:*\n${SLACK_USERS[order.submittedBy] ? `<@${SLACK_USERS[order.submittedBy]}>` : order.submittedBy}` },
+          { type: "mrkdwn", text: `*Submitted By:*\n${order.submittedBy}` },
         ]
       },
       { type: "divider" },
