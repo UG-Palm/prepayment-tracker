@@ -488,15 +488,21 @@ function isAccountant() { return ACCOUNTANT_IDS.includes(currentUserId); }
 
 function applyIdentity() {
   if (!currentUser) return;
-  // Look up avatar by name, fall back to initials
-  const av = AVATARS[currentUser] || {
-    initials: currentUser.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
+  // Also match by Slack ID in case display name differs
+  const knownByID = Object.values(APPROVERS).find(a => a.id === currentUserId);
+  const displayName = knownByID ? knownByID.name : currentUser;
+  if (knownByID && currentUser !== knownByID.name) {
+    currentUser = knownByID.name;
+    localStorage.setItem("ppCurrentUser", currentUser);
+  }
+  const av = AVATARS[displayName] || {
+    initials: displayName.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
     color: "#6b7280"
   };
   const el = document.getElementById("headerAvatar");
-  el.textContent        = av.initials;
-  el.style.background   = av.color;
-  el.title              = currentUser + (isAccountant() ? " (Accountant)" : "");
+  el.textContent      = av.initials;
+  el.style.background = av.color;
+  el.title            = displayName + (isAccountant() ? " — Accountant" : "");
 }
 
 function signOut() {
