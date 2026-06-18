@@ -256,7 +256,7 @@
       <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>
       New Request
     </button>
-    <div class="avatar" id="headerAvatar" onclick="if(confirm('Sign out of the tracker?'))signOut()" style="cursor:pointer" title="Sign out">YP</div>
+    <div class="avatar" id="headerAvatar" onclick="signOut()" style="cursor:pointer" title="Click to sign out">YP</div>
   </div>
 </header>
 
@@ -502,9 +502,7 @@ function applyIdentity() {
 function signOut() {
   localStorage.removeItem("ppCurrentUser");
   localStorage.removeItem("ppCurrentUserId");
-  currentUser   = "";
-  currentUserId = "";
-  document.getElementById("identityModal").style.display = "flex";
+  window.location.reload();
 }
 
 // Pick up Slack OAuth callback params from URL
