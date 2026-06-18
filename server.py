@@ -73,6 +73,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             except Exception as e:
                 self._respond(500, {"ok": False, "error": str(e)})
 
+        elif self.path == "/api/orders/delete":
+            try:
+                payload = json.loads(body)
+                order_id = payload["id"]
+                url = f"{SUPABASE_URL}/rest/v1/orders?id=eq.{order_id}"
+                headers = {**supabase_headers(), "Prefer": "return=minimal"}
+                req = urllib.request.Request(url, headers=headers, method="DELETE")
+                urllib.request.urlopen(req, timeout=10)
+                self._respond(200, {"ok": True})
+            except Exception as e:
+                self._respond(500, {"ok": False, "error": str(e)})
+
         elif self.path == "/notify":
             try:
                 req = urllib.request.Request(

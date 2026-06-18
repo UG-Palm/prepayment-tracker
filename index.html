@@ -568,6 +568,7 @@ function renderDetail(o) {
       <div class="order-header-right">
         <span class="badge ${statusBadgeClass(o.status)}">${o.status}</span>
         <button class="btn btn-ghost btn-sm" onclick="openEditModal('${o.id}')">Edit</button>
+        <button class="btn btn-ghost btn-sm" style="color:#dc2626" onclick="deleteOrder('${o.id}')">Delete</button>
       </div>
     </div>
 
@@ -819,6 +820,22 @@ function sendNextApproverNotification(order, approver, completedStepName) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   }).catch(() => {});
+}
+
+function deleteOrder(id) {
+  const o = orders.find(x => x.id === id);
+  if (!o) return;
+  if (!confirm(`Delete request ${o.id} — "${o.summary}"?\n\nThis cannot be undone.`)) return;
+  orders = orders.filter(x => x.id !== id);
+  fetch("/api/orders/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  }).catch(() => {});
+  document.getElementById("orderDetail").style.display = "none";
+  document.getElementById("emptyState").style.display = "flex";
+  renderList();
+  showToast("Request deleted", "warn");
 }
 
 function rejectOrder(id) {
