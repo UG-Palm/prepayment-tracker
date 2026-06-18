@@ -256,7 +256,7 @@
       <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>
       New Request
     </button>
-    <div class="avatar" id="headerAvatar" onclick="document.getElementById('identityModal').style.display='flex'" style="cursor:pointer" title="Switch user">YP</div>
+    <div class="avatar" id="headerAvatar" onclick="if(confirm('Sign out of the tracker?'))signOut()" style="cursor:pointer" title="Sign out">YP</div>
   </div>
 </header>
 
@@ -287,24 +287,19 @@
   </main>
 </div>
 
-<!-- IDENTITY PICKER MODAL -->
+<!-- SLACK SIGN-IN MODAL -->
 <div class="modal-overlay" id="identityModal" style="display:none">
   <div class="modal" style="max-width:380px">
     <div class="modal-header">
-      <h2 class="modal-title">Who are you?</h2>
+      <h2 class="modal-title">Sign in to continue</h2>
     </div>
-    <div class="modal-body" style="padding:24px 28px 28px">
-      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:20px">Select your name so the tracker knows your role and permissions.</p>
-      <div style="display:flex;flex-direction:column;gap:10px">
-        <button class="btn btn-ghost" style="justify-content:flex-start;padding:12px 16px;font-size:14px" onclick="setCurrentUser('Palmer Yee')">Palmer Yee</button>
-        <button class="btn btn-ghost" style="justify-content:flex-start;padding:12px 16px;font-size:14px" onclick="setCurrentUser('Jenny Xie')">Jenny Xie</button>
-        <button class="btn btn-ghost" style="justify-content:flex-start;padding:12px 16px;font-size:14px" onclick="setCurrentUser('Joanne Zhong')">Joanne Zhong</button>
-        <div style="border-top:1px solid var(--border);margin:4px 0"></div>
-        <div style="display:flex;gap:8px">
-          <input id="customUserInput" type="text" class="form-input" placeholder="Other name…" style="flex:1">
-          <button class="btn btn-primary" onclick="const v=document.getElementById('customUserInput').value.trim();if(v)setCurrentUser(v)">Go</button>
-        </div>
-      </div>
+    <div class="modal-body" style="padding:24px 28px 32px;text-align:center">
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:24px">Sign in with your Slack account so the tracker knows who you are and what you can do.</p>
+      <a href="/auth/slack" style="display:inline-flex;align-items:center;gap:10px;background:#4A154B;color:#fff;padding:12px 20px;border-radius:6px;font-size:14px;font-weight:600;text-decoration:none">
+        <svg width="20" height="20" viewBox="0 0 122.8 122.8" xmlns="http://www.w3.org/2000/svg"><path d="M25.8 77.6c0 7.1-5.8 12.9-12.9 12.9S0 84.7 0 77.6s5.8-12.9 12.9-12.9h12.9v12.9zm6.5 0c0-7.1 5.8-12.9 12.9-12.9s12.9 5.8 12.9 12.9v32.3c0 7.1-5.8 12.9-12.9 12.9s-12.9-5.8-12.9-12.9V77.6z" fill="#E01E5A"/><path d="M45.2 25.8c-7.1 0-12.9-5.8-12.9-12.9S38.1 0 45.2 0s12.9 5.8 12.9 12.9v12.9H45.2zm0 6.5c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9H12.9C5.8 58.1 0 52.3 0 45.2s5.8-12.9 12.9-12.9h32.3z" fill="#36C5F0"/><path d="M97 45.2c0-7.1 5.8-12.9 12.9-12.9s12.9 5.8 12.9 12.9-5.8 12.9-12.9 12.9H97V45.2zm-6.5 0c0 7.1-5.8 12.9-12.9 12.9s-12.9-5.8-12.9-12.9V12.9C64.7 5.8 70.5 0 77.6 0s12.9 5.8 12.9 12.9v32.3z" fill="#2EB67D"/><path d="M77.6 97c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9-12.9-5.8-12.9-12.9V97h12.9zm0-6.5c-7.1 0-12.9-5.8-12.9-12.9s5.8-12.9 12.9-12.9h32.3c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9H77.6z" fill="#ECB22E"/></svg>
+        Sign in with Slack
+      </a>
+      <p id="authError" style="margin-top:16px;font-size:12px;color:#dc2626;display:none"></p>
     </div>
   </div>
 </div>
@@ -479,20 +474,64 @@ const AVATARS = {
 };
 
 // ── IDENTITY ──────────────────────────────────────────────────────────────────
-const ACCOUNTANTS = ["Palmer Yee", "Jenny Xie", "Joanne Zhong"];
+// Accountants are identified by their Slack user ID
+const ACCOUNTANT_IDS = [
+  APPROVERS.srDir.id,   // Palmer Yee
+  APPROVERS.cmo.id,     // Jenny Xie
+  APPROVERS.finance.id, // Joanne Zhong
+];
 
-let currentUser = localStorage.getItem("ppCurrentUser") || "";
+let currentUser   = localStorage.getItem("ppCurrentUser") || "";
+let currentUserId = localStorage.getItem("ppCurrentUserId") || "";
 
-function setCurrentUser(name) {
-  currentUser = name;
-  localStorage.setItem("ppCurrentUser", name);
-  const av = AVATARS[name] || { initials: name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase(), color:"#6b7280" };
-  document.getElementById("headerAvatar").textContent = av.initials;
-  document.getElementById("headerAvatar").style.background = av.color;
-  document.getElementById("identityModal").style.display = "none";
+function isAccountant() { return ACCOUNTANT_IDS.includes(currentUserId); }
+
+function applyIdentity() {
+  if (!currentUser) return;
+  // Look up avatar by name, fall back to initials
+  const av = AVATARS[currentUser] || {
+    initials: currentUser.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
+    color: "#6b7280"
+  };
+  const el = document.getElementById("headerAvatar");
+  el.textContent        = av.initials;
+  el.style.background   = av.color;
+  el.title              = currentUser + (isAccountant() ? " (Accountant)" : "");
 }
 
-function isAccountant() { return ACCOUNTANTS.includes(currentUser); }
+function signOut() {
+  localStorage.removeItem("ppCurrentUser");
+  localStorage.removeItem("ppCurrentUserId");
+  currentUser   = "";
+  currentUserId = "";
+  document.getElementById("identityModal").style.display = "flex";
+}
+
+// Pick up Slack OAuth callback params from URL
+(function handleOAuthCallback() {
+  const params = new URLSearchParams(window.location.search);
+  const slackId   = params.get("slackId");
+  const slackName = params.get("slackName");
+  const authError = params.get("authError");
+
+  if (authError) {
+    document.getElementById("identityModal").style.display = "flex";
+    const errEl = document.getElementById("authError");
+    if (errEl) { errEl.textContent = authError; errEl.style.display = "block"; }
+    window.history.replaceState({}, "", "/");
+    return;
+  }
+
+  if (slackId && slackName) {
+    // Map Slack display name → full name if it matches a known approver
+    const knownUser = Object.values(APPROVERS).find(a => a.id === slackId);
+    currentUser   = knownUser ? knownUser.name : slackName;
+    currentUserId = slackId;
+    localStorage.setItem("ppCurrentUser",   currentUser);
+    localStorage.setItem("ppCurrentUserId", currentUserId);
+    window.history.replaceState({}, "", "/");
+  }
+})();
 
 // ── DATA (loaded from Supabase via server) ────────────────────────────────────
 let orders = [];
@@ -1410,9 +1449,9 @@ async function loadOrders() {
   if (orders.length) selectOrder(orders[0].id);
 }
 
-// Initialize avatar from stored identity, or prompt for it
-if (currentUser) {
-  setCurrentUser(currentUser);
+// Show sign-in modal if not authenticated, otherwise apply stored identity
+if (currentUser && currentUserId) {
+  applyIdentity();
 } else {
   document.getElementById("identityModal").style.display = "flex";
 }

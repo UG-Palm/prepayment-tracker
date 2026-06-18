@@ -1,15 +1,19 @@
 import http.server
 import json
 import urllib.request
+import urllib.parse
 import urllib.error
 import os
 
-SLACK_WEBHOOK  = os.environ.get("SLACK_WEBHOOK", "")
-SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN", "")
-SUPABASE_URL   = os.environ.get("SUPABASE_URL", "")
-SUPABASE_KEY   = os.environ.get("SUPABASE_KEY", "")
-PORT           = int(os.environ.get("PORT", 3500))
-STATIC_DIR     = os.path.dirname(os.path.abspath(__file__))
+SLACK_WEBHOOK       = os.environ.get("SLACK_WEBHOOK", "")
+SLACK_BOT_TOKEN     = os.environ.get("SLACK_BOT_TOKEN", "")
+SLACK_CLIENT_ID     = os.environ.get("SLACK_CLIENT_ID", "")
+SLACK_CLIENT_SECRET = os.environ.get("SLACK_CLIENT_SECRET", "")
+SLACK_REDIRECT_URI  = os.environ.get("SLACK_REDIRECT_URI", "https://prepayment-tracker.onrender.com/auth/callback")
+SUPABASE_URL        = os.environ.get("SUPABASE_URL", "")
+SUPABASE_KEY        = os.environ.get("SUPABASE_KEY", "")
+PORT                = int(os.environ.get("PORT", 3500))
+STATIC_DIR          = os.path.dirname(os.path.abspath(__file__))
 
 def supabase_headers():
     return {
@@ -44,14 +48,98 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         super().__init__(*args, directory=STATIC_DIR, **kwargs)
 
     def do_GET(self):
-        if self.path == "/api/orders":
+        parsed = urllib.parse.urlparse(self.path)
+
+        if parsed.path == "/api/orders":
             try:
                 orders = supabase_get_orders()
                 self._respond(200, orders)
             except Exception as e:
                 self._respond(500, {"error": str(e)})
+
+        elif parsed.path == "/auth/slack":
+            # Redirect user to Slack OAuth
+            params = urllib.parse.urlencode({
+                "client_id":    SLACK_CLIENT_ID,
+                "user_scope":   "identity.basic",
+                "redirect_uri": SLACK_REDIRECT_URI,
+            })
+            self.send_response(302)
+            self.send_header("Location", f"https://slack.com/oauth/v2/authorize?{params}")
+            self.end_headers()
+
+        elif parsed.path == "/auth/callback":
+            qs = urllib.parse.parse_qs(parsed.query)
+            code = qs.get("code", [None])[0]
+            error = qs.get("error", [None])[0]
+
+            if error or not code:
+                self._redirect_with_error("Slack sign-in was cancelled.")
+                return
+
+            try:
+                # Exchange code for token
+                token_body = urllib.parse.urlencode({
+                    "client_id":     SLACK_CLIENT_ID,
+                    "client_secret": SLACK_CLIENT_SECRET,
+                    "code":          code,
+                    "redirect_uri":  SLACK_REDIRECT_URI,
+                }).encode()
+                req = urllib.request.Request(
+                    "https://slack.com/api/oauth.v2.access",
+                    data=token_body,
+                    headers={"Content-Type": "application/x-www-form-urlencoded"},
+                    method="POST"
+                )
+                with urllib.request.urlopen(req, timeout=10) as res:
+                    token_data = json.loads(res.read())
+
+                if not token_data.get("ok"):
+                    self._redirect_with_error("Slack OAuth failed: " + token_data.get("error", "unknown"))
+                    return
+
+                user_token = token_data.get("authed_user", {}).get("access_token")
+                if not user_token:
+                    self._redirect_with_error("Could not get user token from Slack.")
+                    return
+
+                # Get user identity
+                req2 = urllib.request.Request(
+                    "https://slack.com/api/users.identity",
+                    headers={"Authorization": f"Bearer {user_token}"},
+                    method="GET"
+                )
+                with urllib.request.urlopen(req2, timeout=10) as res2:
+                    identity = json.loads(res2.read())
+
+                if not identity.get("ok"):
+                    self._redirect_with_error("Could not fetch Slack identity.")
+                    return
+
+                slack_id   = identity["user"]["id"]
+                slack_name = identity["user"]["name"]
+                display_name = identity["user"].get("name", slack_name)
+
+                # Redirect back to app with identity in query params
+                redirect_params = urllib.parse.urlencode({
+                    "slackId":   slack_id,
+                    "slackName": display_name,
+                })
+                self.send_response(302)
+                self.send_header("Location", f"/?{redirect_params}")
+                self.end_headers()
+
+            except Exception as e:
+                self._redirect_with_error(str(e))
+
         else:
             super().do_GET()
+
+    def _redirect_with_error(self, msg):
+        params = urllib.parse.urlencode({"authError": msg})
+        self.send_response(302)
+        self.send_header("Location", f"/?{params}")
+        self.end_headers()
 
     def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
@@ -75,10 +163,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
         elif self.path == "/api/orders/delete":
             try:
-                payload = json.loads(body)
+                payload  = json.loads(body)
                 order_id = payload["id"]
-                url = f"{SUPABASE_URL}/rest/v1/orders?id=eq.{order_id}"
-                headers = {**supabase_headers(), "Prefer": "return=minimal"}
+                url      = f"{SUPABASE_URL}/rest/v1/orders?id=eq.{order_id}"
+                headers  = {**supabase_headers(), "Prefer": "return=minimal"}
                 req = urllib.request.Request(url, headers=headers, method="DELETE")
                 urllib.request.urlopen(req, timeout=10)
                 self._respond(200, {"ok": True})
@@ -137,7 +225,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
