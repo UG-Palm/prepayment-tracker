@@ -1373,6 +1373,26 @@ function sendSlackNotification(order) {
     else         showToast("Request saved — Slack error: " + data.error, "warn");
   })
   .catch(() => showToast("Request saved — could not reach Slack", "warn"));
+
+  // DM the submitter confirming their request was submitted
+  const submitterId = SLACK_USERS[order.submittedBy];
+  if (submitterId) {
+    const trackerLink = `${TRACKER_URL}?request=${order.id}`;
+    const approvers = getApproversForAmount(order.amount);
+    fetch("/notify-dm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        channel: submitterId,
+        text: `Your prepayment request ${order.id} has been submitted`,
+        blocks: [
+          { type: "header", text: { type: "plain_text", text: "✅ Your Request Has Been Submitted", emoji: true } },
+          { type: "section", text: { type: "mrkdwn", text: `Hi ${order.submittedBy}, your prepayment request *${order.id}* for *${order.summary}* (${fmt(order.amount)}) has been submitted and is pending approval from:\n${approvers.map(a => `• ${a.name}`).join("\n")}` } },
+          { type: "actions", elements: [{ type: "button", text: { type: "plain_text", text: "Track Your Request", emoji: true }, style: "primary", url: trackerLink }] }
+        ]
+      }),
+    }).catch(() => {});
+  }
 }
 
 // ── APPROVAL NOTIFICATION ─────────────────────────────────────────────────────
