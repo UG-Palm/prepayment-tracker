@@ -256,7 +256,7 @@
       <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>
       New Request
     </button>
-    <div class="avatar">YP</div>
+    <div class="avatar" id="headerAvatar" onclick="document.getElementById('identityModal').style.display='flex'" style="cursor:pointer" title="Switch user">YP</div>
   </div>
 </header>
 
@@ -285,6 +285,28 @@
     </div>
     <div id="orderDetail" style="display:none; flex-direction:column; height:100%;"></div>
   </main>
+</div>
+
+<!-- IDENTITY PICKER MODAL -->
+<div class="modal-overlay" id="identityModal" style="display:none">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header">
+      <h2 class="modal-title">Who are you?</h2>
+    </div>
+    <div class="modal-body" style="padding:24px 28px 28px">
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:20px">Select your name so the tracker knows your role and permissions.</p>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button class="btn btn-ghost" style="justify-content:flex-start;padding:12px 16px;font-size:14px" onclick="setCurrentUser('Palmer Yee')">Palmer Yee</button>
+        <button class="btn btn-ghost" style="justify-content:flex-start;padding:12px 16px;font-size:14px" onclick="setCurrentUser('Jenny Xie')">Jenny Xie</button>
+        <button class="btn btn-ghost" style="justify-content:flex-start;padding:12px 16px;font-size:14px" onclick="setCurrentUser('Joanne Zhong')">Joanne Zhong</button>
+        <div style="border-top:1px solid var(--border);margin:4px 0"></div>
+        <div style="display:flex;gap:8px">
+          <input id="customUserInput" type="text" class="form-input" placeholder="Other name…" style="flex:1">
+          <button class="btn btn-primary" onclick="const v=document.getElementById('customUserInput').value.trim();if(v)setCurrentUser(v)">Go</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- NEW / EDIT REQUEST MODAL -->
@@ -456,6 +478,22 @@ const AVATARS = {
   "Joanne Zhong": { initials:"JZ", color:"#059669" },
 };
 
+// ── IDENTITY ──────────────────────────────────────────────────────────────────
+const ACCOUNTANTS = ["Palmer Yee", "Jenny Xie", "Joanne Zhong"];
+
+let currentUser = localStorage.getItem("ppCurrentUser") || "";
+
+function setCurrentUser(name) {
+  currentUser = name;
+  localStorage.setItem("ppCurrentUser", name);
+  const av = AVATARS[name] || { initials: name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase(), color:"#6b7280" };
+  document.getElementById("headerAvatar").textContent = av.initials;
+  document.getElementById("headerAvatar").style.background = av.color;
+  document.getElementById("identityModal").style.display = "none";
+}
+
+function isAccountant() { return ACCOUNTANTS.includes(currentUser); }
+
 // ── DATA (loaded from Supabase via server) ────────────────────────────────────
 let orders = [];
 
@@ -568,7 +606,10 @@ function renderDetail(o) {
       <div class="order-header-right">
         <span class="badge ${statusBadgeClass(o.status)}">${o.status}</span>
         <button class="btn btn-ghost btn-sm" onclick="openEditModal('${o.id}')">Edit</button>
-        <button class="btn btn-ghost btn-sm" style="color:#dc2626" onclick="deleteOrder('${o.id}')">Delete</button>
+        ${isAccountant()
+          ? `<button class="btn btn-ghost btn-sm" style="color:#dc2626" onclick="deleteOrder('${o.id}')">Delete</button>`
+          : `<button class="btn btn-ghost btn-sm" style="color:#d97706" onclick="requestDeletion('${o.id}')">Request Deletion</button>`
+        }
       </div>
     </div>
 
@@ -822,6 +863,39 @@ function sendNextApproverNotification(order, approver, completedStepName) {
   }).catch(() => {});
 }
 
+function requestDeletion(id) {
+  const o = orders.find(x => x.id === id);
+  if (!o) return;
+  if (!confirm(`Request deletion of ${o.id} — "${o.summary}"?\n\nThe accountants will be notified to review and delete this request.`)) return;
+  const vendor = o.summary.split(",")[0];
+  const trackerLink = `${TRACKER_URL}?request=${o.id}`;
+  const requester = currentUser || "A user";
+  const accountantMentions = [APPROVERS.srDir, APPROVERS.cmo, APPROVERS.finance].map(a => `<@${a.id}>`).join(" ");
+
+  // Post to channel
+  fetch("/notify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text: `🗑️ Deletion requested for ${o.id} by ${requester}`,
+      blocks: [
+        { type: "header", text: { type: "plain_text", text: "🗑️ Deletion Request", emoji: true } },
+        { type: "section", text: { type: "mrkdwn", text: `*${requester}* has requested deletion of the following prepayment request. Please review and delete if appropriate.\n\n${accountantMentions}` } },
+        { type: "section", fields: [
+          { type: "mrkdwn", text: `*Request ID:*\n${o.id}` },
+          { type: "mrkdwn", text: `*Vendor:*\n${vendor}` },
+          { type: "mrkdwn", text: `*Amount:*\n${fmt(o.amount)}` },
+          { type: "mrkdwn", text: `*PO Number:*\n${o.po}` },
+          { type: "mrkdwn", text: `*Status:*\n${o.status}` },
+        ]},
+        { type: "actions", elements: [{ type: "button", text: { type: "plain_text", text: "View Request", emoji: true }, url: trackerLink }] }
+      ]
+    }),
+  }).catch(() => {});
+
+  showToast("Deletion request sent to accountants", "warn");
+}
+
 function deleteOrder(id) {
   const o = orders.find(x => x.id === id);
   if (!o) return;
@@ -994,7 +1068,7 @@ function createOrder() {
   const newOrder = {
     id, summary, po, amount, orderValue, prepayPct:pct, category, delivery, terms,
     exclusive, vendorReason, benefit, frequency:freqEl.value, skus,
-    status:"Pending", submittedBy:"You", submittedDate:todayStr,
+    status:"Pending", submittedBy:currentUser || "You", submittedDate:todayStr,
     approvalStep:1, unread:0,
     attachments,
     history:[{action:"Request submitted", detail:"Submitted by You", time:nowStr(), color:"grey"}],
@@ -1334,6 +1408,13 @@ async function loadOrders() {
   renderList();
   // auto-select first order if available
   if (orders.length) selectOrder(orders[0].id);
+}
+
+// Initialize avatar from stored identity, or prompt for it
+if (currentUser) {
+  setCurrentUser(currentUser);
+} else {
+  document.getElementById("identityModal").style.display = "flex";
 }
 
 loadOrders();
