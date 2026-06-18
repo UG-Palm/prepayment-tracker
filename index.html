@@ -1180,7 +1180,7 @@ function sendApprovalNotification(order, stepName, isFullyApproved) {
       { type: "divider" },
       {
         type: "section",
-        text: { type: "mrkdwn", text: `:white_check_mark: *All approval steps completed.* This request is fully approved and ready for payment processing.` }
+        text: { type: "mrkdwn", text: `:white_check_mark: *All approval steps completed.* This request is fully approved and ready for payment processing.\n\n<@${APPROVERS.srDir.id}> <@${APPROVERS.cmo.id}> — please proceed with payment.` }
       },
       {
         type: "actions",
