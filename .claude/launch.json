@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "prepayment-tracker",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-p", "3500", "."],
+      "port": 3500
+    }
+  ]
+}

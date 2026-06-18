@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vendor Prepayment Approval Tracker</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f4f5f7;
+    --surface: #ffffff;
+    --border: #e1e4e8;
+    --primary: #0052cc;
+    --primary-hover: #0041a8;
+    --primary-light: #e8f0ff;
+    --success: #1a7f37;
+    --success-bg: #dcfce7;
+    --warning: #9a6700;
+    --warning-bg: #fef9c3;
+    --danger: #b91c1c;
+    --danger-bg: #fee2e2;
+    --info-bg: #eff6ff;
+    --purple-bg: #f5f3ff;
+    --purple: #6d28d9;
+    --neutral: #6b7280;
+    --text: #1a1a2e;
+    --text-secondary: #4b5563;
+    --text-muted: #9ca3af;
+    --shadow: 0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.06);
+    --shadow-md: 0 4px 6px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.06);
+    --radius: 8px;
+    --radius-sm: 4px;
+    --sidebar-w: 268px;
+  }
+
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; font-size: 14px; }
+
+  /* ── TOP NAV ── */
+  .topnav { background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 52px; flex-shrink: 0; box-shadow: 0 2px 6px rgba(0,0,0,.2); }
+  .topnav-brand { font-size: 16px; font-weight: 700; letter-spacing: -.3px; display: flex; align-items: center; gap: 8px; }
+  .topnav-right { display: flex; align-items: center; gap: 16px; }
+  .topnav-right .avatar { width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,.25); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px; cursor: pointer; }
+  .btn-new { background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.3); color: #fff; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 6px; transition: background .15s; }
+  .btn-new:hover { background: rgba(255,255,255,.25); }
+
+  /* ── LAYOUT ── */
+  .app-body { display: flex; flex: 1; overflow: hidden; height: calc(100vh - 52px); }
+
+  /* ── SIDEBAR ── */
+  .sidebar { width: var(--sidebar-w); background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; }
+  .sidebar-header { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .sidebar-search { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; color: var(--text); background: var(--bg); outline: none; }
+  .sidebar-search:focus { border-color: var(--primary); }
+  .sidebar-filters { display: flex; gap: 4px; padding: 10px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .filter-chip { padding: 3px 10px; border-radius: 20px; border: 1px solid var(--border); font-size: 12px; cursor: pointer; background: var(--surface); color: var(--text-secondary); transition: all .15s; white-space: nowrap; }
+  .filter-chip.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .order-list { flex: 1; overflow-y: auto; }
+  .order-item { padding: 12px 16px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background .1s; position: relative; }
+  .order-item:hover { background: var(--bg); }
+  .order-item.selected { background: var(--primary-light); border-left: 3px solid var(--primary); }
+  .order-item-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+  .order-vendor { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+  .order-amount { font-size: 13px; font-weight: 600; color: var(--text); }
+  .order-meta { display: flex; justify-content: space-between; align-items: center; }
+  .order-id { font-size: 11px; color: var(--text-muted); }
+  .order-unread { width: 7px; height: 7px; border-radius: 50%; background: var(--primary); position: absolute; top: 14px; right: 12px; }
+  .route-tag { font-size: 10px; padding: 1px 6px; border-radius: 10px; font-weight: 600; margin-top: 4px; display: inline-block; }
+  .route-tag.high { background: var(--purple-bg); color: var(--purple); }
+  .route-tag.low  { background: var(--info-bg); color: #1d4ed8; }
+
+  /* ── MAIN PANEL ── */
+  .main-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); gap: 12px; }
+  .empty-state svg { opacity: .3; }
+  .empty-state p { font-size: 15px; }
+
+  /* ── ORDER HEADER ── */
+  .order-header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: flex-start; justify-content: space-between; flex-shrink: 0; }
+  .order-header-left h2 { font-size: 16px; font-weight: 700; margin-bottom: 3px; }
+  .order-header-left .subtitle { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+  .order-header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .badge-pending  { background: var(--warning-bg); color: var(--warning); }
+  .badge-approved { background: var(--success-bg); color: var(--success); }
+  .badge-rejected { background: var(--danger-bg);  color: var(--danger); }
+  .badge-review   { background: var(--info-bg);    color: #1d4ed8; }
+  .badge-draft    { background: #f3f4f6;            color: var(--neutral); }
+
+  /* approval route banner */
+  .route-banner { padding: 8px 24px; font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 8px; flex-shrink: 0; border-bottom: 1px solid var(--border); }
+  .route-banner.high { background: var(--purple-bg); color: var(--purple); }
+  .route-banner.low  { background: var(--info-bg);   color: #1d4ed8; }
+  .route-banner svg  { flex-shrink: 0; }
+
+  /* ── TABS ── */
+  .tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--surface); padding: 0 24px; flex-shrink: 0; }
+  .tab { padding: 10px 16px; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-secondary); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .15s; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+  .tab-badge { background: var(--primary); color: #fff; border-radius: 10px; padding: 1px 6px; font-size: 10px; margin-left: 4px; }
+
+  /* ── TAB CONTENT ── */
+  .tab-content { flex: 1; overflow-y: auto; }
+  .tab-pane { display: none; padding: 20px 24px; }
+  .tab-pane.active { display: block; }
+
+  /* ── DETAILS ── */
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .detail-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
+  .detail-card h3 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); margin-bottom: 12px; }
+  .field-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--border); align-items: flex-start; gap: 12px; }
+  .field-row:last-child { border-bottom: none; }
+  .field-label { font-size: 12px; color: var(--text-secondary); flex-shrink: 0; }
+  .field-value { font-size: 13px; font-weight: 500; text-align: right; }
+  .field-value.amount { font-size: 15px; font-weight: 700; color: var(--primary); }
+  .field-value.wrap { text-align: left; white-space: pre-wrap; word-break: break-word; }
+
+  /* full-width card */
+  .detail-card-full { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); margin-bottom: 16px; }
+  .detail-card-full h3 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); margin-bottom: 10px; }
+  .detail-card-full p { font-size: 13px; line-height: 1.6; color: var(--text-secondary); }
+
+  /* approval track */
+  .approval-track { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); margin-bottom: 16px; }
+  .approval-track h3 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); margin-bottom: 16px; }
+  .track-steps { display: flex; align-items: flex-start; }
+  .track-step { flex: 1; display: flex; flex-direction: column; align-items: center; position: relative; }
+  .track-step:not(:last-child)::after { content: ''; position: absolute; top: 15px; left: 50%; width: 100%; height: 2px; background: var(--border); z-index: 0; }
+  .track-step.done:not(:last-child)::after { background: var(--success); }
+  .track-step.active:not(:last-child)::after { background: var(--border); }
+  .step-dot { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; border: 2px solid var(--border); background: var(--surface); z-index: 1; position: relative; }
+  .step-dot.done     { background: var(--success); border-color: var(--success); color: #fff; }
+  .step-dot.active   { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .step-dot.rejected { background: var(--danger);  border-color: var(--danger);  color: #fff; }
+  .step-dot.pending  { background: var(--surface); color: var(--text-muted); }
+  .step-label { margin-top: 8px; font-size: 10px; text-align: center; color: var(--text-secondary); font-weight: 600; line-height: 1.3; padding: 0 2px; }
+  .step-who   { font-size: 10px; color: var(--text-muted); text-align: center; margin-top: 2px; }
+
+  /* action bar */
+  .action-bar { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; display: flex; align-items: center; gap: 10px; box-shadow: var(--shadow); }
+  .action-bar span { flex: 1; font-size: 13px; color: var(--text-secondary); }
+  .btn { padding: 7px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; transition: all .15s; display: inline-flex; align-items: center; gap: 6px; }
+  .btn-primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-success { background: #16a34a; color: #fff; border-color: #16a34a; }
+  .btn-success:hover { background: #15803d; }
+  .btn-danger  { background: #dc2626; color: #fff; border-color: #dc2626; }
+  .btn-danger:hover { background: #b91c1c; }
+  .btn-ghost   { background: transparent; color: var(--text-secondary); border-color: var(--border); }
+  .btn-ghost:hover { background: var(--bg); }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+  /* ── CONVERSATION ── */
+  .conversation-wrap { display: flex; flex-direction: column; height: 100%; }
+  .messages-list { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; min-height: 200px; max-height: calc(100vh - 52px - 42px - 53px - 140px); }
+  .msg { display: flex; gap: 10px; max-width: 82%; }
+  .msg.me { align-self: flex-end; flex-direction: row-reverse; }
+  .msg-avatar { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #fff; }
+  .msg-meta { font-size: 11px; color: var(--text-muted); margin-bottom: 3px; }
+  .msg.me .msg-meta { text-align: right; }
+  .msg-bubble { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; border-top-left-radius: 3px; padding: 10px 14px; font-size: 13px; line-height: 1.5; box-shadow: var(--shadow); }
+  .msg.me .msg-bubble { background: var(--primary); color: #fff; border-color: var(--primary); border-top-right-radius: 3px; border-top-left-radius: 12px; }
+  .msg-system { align-self: center; background: var(--bg); border: 1px solid var(--border); border-radius: 20px; padding: 4px 14px; font-size: 11px; color: var(--text-muted); }
+  .compose-area { padding: 14px 24px; border-top: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+  .compose-inner { display: flex; gap: 10px; align-items: flex-end; }
+  .compose-input { flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font-size: 13px; resize: none; font-family: inherit; outline: none; line-height: 1.5; max-height: 100px; min-height: 38px; }
+  .compose-input:focus { border-color: var(--primary); }
+
+  /* ── DOCUMENTS ── */
+  .doc-list { display: flex; flex-direction: column; gap: 10px; }
+  .doc-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow); }
+  .doc-icon { width: 38px; height: 38px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; }
+  .doc-icon.pdf  { background: #fee2e2; }
+  .doc-icon.xlsx { background: #dcfce7; }
+  .doc-icon.img  { background: #eff6ff; }
+  .doc-info { flex: 1; }
+  .doc-name { font-weight: 600; font-size: 13px; }
+  .doc-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .doc-actions { display: flex; gap: 6px; }
+
+  /* ── HISTORY ── */
+  .history-list { display: flex; flex-direction: column; }
+  .history-item { display: flex; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .history-item:last-child { border-bottom: none; }
+  .hist-dot-col { display: flex; flex-direction: column; align-items: center; }
+  .hist-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--primary); margin-top: 4px; flex-shrink: 0; }
+  .hist-dot.green { background: var(--success); }
+  .hist-dot.red   { background: var(--danger); }
+  .hist-dot.grey  { background: var(--neutral); }
+  .hist-line { width: 1px; flex: 1; background: var(--border); margin-top: 4px; min-height: 16px; }
+  .hist-content { flex: 1; }
+  .hist-action { font-size: 13px; font-weight: 500; }
+  .hist-detail { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  .hist-time { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+
+  /* ── MODAL ── */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 100; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 24px 16px; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border-radius: 12px; width: 620px; max-width: 97vw; box-shadow: 0 20px 60px rgba(0,0,0,.2); margin: auto; }
+  .modal-header { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: var(--surface); border-radius: 12px 12px 0 0; z-index: 1; }
+  .modal-header h2 { font-size: 16px; font-weight: 700; }
+  .modal-header .modal-subtitle { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  .modal-close { background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 20px; line-height: 1; padding: 2px 6px; border-radius: 4px; }
+  .modal-close:hover { background: var(--bg); color: var(--text); }
+  .modal-body { padding: 24px; }
+  .modal-footer { padding: 14px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; position: sticky; bottom: 0; background: var(--surface); border-radius: 0 0 12px 12px; }
+  .form-group { margin-bottom: 15px; }
+  .form-label { display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 5px; }
+  .form-label .req { color: var(--danger); }
+  .form-control { width: 100%; padding: 8px 11px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; font-family: inherit; outline: none; color: var(--text); background: var(--surface); }
+  .form-control:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0,82,204,.1); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .form-hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+  .radio-group { display: flex; flex-direction: column; gap: 8px; }
+  .radio-opt { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; }
+  .radio-opt input { margin-top: 2px; cursor: pointer; accent-color: var(--primary); }
+  .radio-opt span { font-size: 13px; color: var(--text); line-height: 1.4; }
+
+  /* route preview in modal */
+  .route-preview { border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; font-size: 13px; display: none; }
+  .route-preview.show { display: block; }
+  .route-preview.high { background: var(--purple-bg); border: 1px solid #c4b5fd; color: var(--purple); }
+  .route-preview.low  { background: var(--info-bg);   border: 1px solid #bfdbfe; color: #1d4ed8; }
+  .route-preview strong { font-weight: 700; }
+  .route-preview ul { margin: 6px 0 0 16px; }
+  .route-preview ul li { margin-bottom: 3px; }
+
+  /* section divider in modal */
+  .form-section { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--text-muted); margin: 20px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+
+  /* file upload fake */
+  .file-upload { border: 1.5px dashed var(--border); border-radius: 8px; padding: 16px; text-align: center; cursor: pointer; background: var(--bg); transition: border-color .15s; }
+  .file-upload:hover { border-color: var(--primary); background: var(--primary-light); }
+  .file-upload input { display: none; }
+  .file-upload-label { font-size: 13px; color: var(--text-secondary); display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; }
+  .file-upload-label svg { color: var(--text-muted); }
+  .file-name-display { margin-top: 8px; font-size: 12px; color: var(--primary); font-weight: 500; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
+</style>
+</head>
+<body>
+
+<!-- TOP NAV -->
+<header class="topnav">
+  <div class="topnav-brand">
+    <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3" fill="rgba(255,255,255,.3)"/><path d="M7 8h10M7 12h7M7 16h4" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
+    Vendor Prepayment Tracker
+  </div>
+  <div class="topnav-right">
+    <button class="btn-new" onclick="openNewModal()">
+      <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>
+      New Request
+    </button>
+    <div class="avatar">YP</div>
+  </div>
+</header>
+
+<div class="app-body">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <input class="sidebar-search" type="text" placeholder="Search orders…" id="searchInput" oninput="filterOrders()">
+    </div>
+    <div class="sidebar-filters">
+      <span class="filter-chip active" onclick="setFilter('all',this)">All</span>
+      <span class="filter-chip" onclick="setFilter('Pending',this)">Pending</span>
+      <span class="filter-chip" onclick="setFilter('In Review',this)">In Review</span>
+      <span class="filter-chip" onclick="setFilter('Approved',this)">Approved</span>
+      <span class="filter-chip" onclick="setFilter('Rejected',this)">Rejected</span>
+    </div>
+    <div class="order-list" id="orderList"></div>
+  </aside>
+
+  <!-- MAIN PANEL -->
+  <main class="main-panel" id="mainPanel">
+    <div class="empty-state" id="emptyState">
+      <svg width="64" height="64" fill="none" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" stroke="#9ca3af" stroke-width="1.5"/><path d="M8 8h8M8 12h5" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <p>Select a request to view details</p>
+    </div>
+    <div id="orderDetail" style="display:none; flex-direction:column; height:100%;"></div>
+  </main>
+</div>
+
+<!-- NEW / EDIT REQUEST MODAL -->
+<div class="modal-overlay" id="newModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <h2 id="modalTitle">New Prepayment Request</h2>
+        <div class="modal-subtitle">Upon submission your request will be sent for approval.</div>
+      </div>
+      <button class="modal-close" onclick="closeNewModal()">×</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Approval routing preview — updates live -->
+      <div class="route-preview" id="routePreview">
+        <strong id="routeTitle"></strong>
+        <ul id="routeList"></ul>
+      </div>
+
+      <div class="form-section">Request Details</div>
+
+      <div class="form-group">
+        <label class="form-label">Summary <span class="req">*</span></label>
+        <input class="form-control" id="nSummary" placeholder="[Vendor name], Pre-Payment Request!" />
+        <div class="form-hint">Format: [Vendor name], Pre-Payment Request!</div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">PO Number <span class="req">*</span></label>
+          <input class="form-control" id="nPO" placeholder="e.g. PO-2026-0041" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Category</label>
+          <select class="form-control" id="nCategory">
+            <option>Apparel</option>
+            <option>Accessories</option>
+            <option>Home &amp; Gifts</option>
+            <option>Seasonal</option>
+            <option>Stationery</option>
+            <option>Other</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">SKU(s) Number and SKU(s) Description <span class="req">*</span></label>
+        <textarea class="form-control" id="nSkus" rows="3" placeholder="List each SKU number and description, one per line"></textarea>
+      </div>
+
+      <div class="form-section">Payment Information</div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Pre-Payment Total Cost ($) <span class="req">*</span></label>
+          <input class="form-control" id="nAmount" type="number" min="0" step="0.01" placeholder="0.00" oninput="updateRoutePreview()" />
+          <div class="form-hint" id="routeHint"></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Pre-Payment % of Total PO <span class="req">*</span></label>
+          <input class="form-control" id="nPrepayPct" type="number" min="0" max="100" placeholder="e.g. 50" />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Total PO Value ($)</label>
+          <input class="form-control" id="nOrderValue" type="number" min="0" step="0.01" placeholder="0.00" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Requested Delivery Date</label>
+          <input class="form-control" id="nDelivery" type="date" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Payment Terms for Remainder of PO <span class="req">*</span></label>
+        <input class="form-control" id="nTerms" placeholder="e.g. Net-30 after shipment" />
+      </div>
+
+      <div class="form-section">Vendor Justification</div>
+
+      <div class="form-group">
+        <label class="form-label">Exclusive Item? <span class="req">*</span></label>
+        <select class="form-control" id="nExclusive">
+          <option value="">Select…</option>
+          <option>Yes — exclusively developed for UG</option>
+          <option>No</option>
+          <option>Partially exclusive (select SKUs)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Vendor Reason <span class="req">*</span></label>
+        <textarea class="form-control" id="nVendorReason" rows="2" placeholder="Why is the vendor requiring prepayment?"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Negotiated Benefit to UG <span class="req">*</span></label>
+        <textarea class="form-control" id="nBenefit" rows="2" placeholder="What did we negotiate in exchange (discount, exclusivity, priority slot, etc.)?"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Frequency of Request <span class="req">*</span></label>
+        <div class="radio-group" id="nFrequency">
+          <label class="radio-opt"><input type="radio" name="freq" value="One-time vendor ask"><span>One-time vendor ask</span></label>
+          <label class="radio-opt"><input type="radio" name="freq" value="Possible recurring / not sure"><span>Possible recurring / not sure</span></label>
+          <label class="radio-opt"><input type="radio" name="freq" value="Vendor asks for this pre-payment % on all future POs"><span>Vendor asks for this pre-payment % on all future POs</span></label>
+        </div>
+      </div>
+
+      <div class="form-section">Attachments</div>
+
+      <div class="form-group">
+        <label class="form-label">Invoice / PO Attachment</label>
+        <div class="file-upload" onclick="document.getElementById('fileInput').click()">
+          <label class="file-upload-label">
+            <svg width="24" height="24" fill="none" viewBox="0 0 24 24"><path d="M12 16V8m0 0-3 3m3-3 3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.5"/></svg>
+            <span>Click to upload file</span>
+            <span style="font-size:11px">PDF, Word, Excel, PPT, Images — max 100 MB</span>
+          </label>
+          <input type="file" id="fileInput" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif" onchange="handleFile(event)">
+        </div>
+        <div class="file-name-display" id="fileNameDisplay"></div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeNewModal()">Cancel</button>
+      <button class="btn btn-primary" id="modalSubmitBtn" onclick="createOrder()">Submit Request</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CONSTANTS ──────────────────────────────────────────────────────────────────
+const THRESHOLD = 5000;
+
+// Approval routes based on amount
+const ROUTE_HIGH = {
+  label: "high",
+  title: "Over $5,000 — requires 3-level approval:",
+  approvers: ["Senior Director of Merchandising", "Chief Merchandising Officer", "Head of Finance"],
+};
+const ROUTE_LOW = {
+  label: "low",
+  title: "Under $5,000 — requires 1-level approval:",
+  approvers: ["Senior Director of Merchandising"],
+};
+
+// Steps: always starts with Submitted, ends with Complete
+function getSteps(amount) {
+  if (amount >= THRESHOLD) {
+    return ["Submitted", "Sr. Dir. Merchandising", "Chief Merch Officer", "Head of Finance", "Complete"];
+  }
+  return ["Submitted", "Sr. Dir. Merchandising", "Complete"];
+}
+
+const AVATARS = {
+  "Sarah K.":  { initials:"SK", color:"#7c3aed" },
+  "Marcus T.": { initials:"MT", color:"#0891b2" },
+  "Dana L.":   { initials:"DL", color:"#d97706" },
+  "James P.":  { initials:"JP", color:"#059669" },
+  "You":       { initials:"YP", color:"#0052cc" },
+};
+
+// ── SAMPLE DATA ────────────────────────────────────────────────────────────────
+const orders = [
+  {
+    id:"PPR-0041",
+    summary:"Acme Merch Co., Pre-Payment Request!",
+    po:"PO-2026-0041",
+    amount:18500, orderValue:37000,
+    prepayPct:50,
+    category:"Apparel",
+    delivery:"2026-08-15",
+    terms:"50% net-30 after shipment",
+    exclusive:"Yes — exclusively developed for UG",
+    vendorReason:"Custom embroidery run requires upfront materials cost commitment.",
+    benefit:"Exclusive colorway lock-in for Q3 launch, 5% unit price discount.",
+    frequency:"One-time vendor ask",
+    skus:"SKU-10042 — Classic Logo Tee (S/M/L/XL)\nSKU-10043 — Embroidered Cap",
+    status:"In Review", submittedBy:"Sarah K.", submittedDate:"Jun 10, 2026",
+    approvalStep:2, unread:2,
+    attachments:[
+      {name:"Acme_PO_0041.pdf", type:"pdf", size:"284 KB", uploaded:"Jun 10"},
+      {name:"Acme_VendorAgreement_2026.pdf", type:"pdf", size:"1.2 MB", uploaded:"Jun 10"},
+    ],
+    history:[
+      {action:"Request submitted",detail:"Submitted by Sarah K.",time:"Jun 10, 9:14am",color:"grey"},
+      {action:"Sr. Dir. Merchandising approved",detail:"Approved by Marcus T. — SKUs confirmed.",time:"Jun 11, 10:05am",color:"green"},
+    ],
+    messages:[
+      {id:1,from:"Sarah K.",time:"Jun 10, 9:20am",text:"Heads up — Acme needs the first payment by June 30 or they'll push our slot. Let me know if there are any questions on the PO."},
+      {id:2,from:"Marcus T.",time:"Jun 11, 10:06am",text:"SKUs look good on my end. Confirmed the colorways and sizes match the buy plan. Approving Sr. Dir. step."},
+      {id:3,from:"Dana L.",time:"Jun 12, 2:00pm",text:"CMO review in progress. Will update by EOD."},
+    ],
+  },
+  {
+    id:"PPR-0039",
+    summary:"Bright Label Studio, Pre-Payment Request!",
+    po:"PO-2026-0039",
+    amount:4200, orderValue:4200,
+    prepayPct:100,
+    category:"Stationery",
+    delivery:"2026-07-20",
+    terms:"100% prepayment — no balance",
+    exclusive:"No",
+    vendorReason:"Small-run studio policy: 100% prepayment required for all orders under $10k.",
+    benefit:"Priority production slot secured.",
+    frequency:"One-time vendor ask",
+    skus:"SKU-20881 — Greeting Card Set A (12-pack)\nSKU-20882 — Greeting Card Set B (12-pack)",
+    status:"Approved", submittedBy:"James P.", submittedDate:"Jun 5, 2026",
+    approvalStep:3, unread:0,
+    attachments:[
+      {name:"BrightLabel_PO_0039.pdf", type:"pdf", size:"196 KB", uploaded:"Jun 5"},
+    ],
+    history:[
+      {action:"Request submitted",detail:"Submitted by James P.",time:"Jun 5, 11:00am",color:"grey"},
+      {action:"Sr. Dir. Merchandising approved",detail:"Approved by Marcus T.",time:"Jun 6, 9:30am",color:"green"},
+      {action:"Request fully approved",detail:"Payment authorized.",time:"Jun 7, 10:00am",color:"green"},
+    ],
+    messages:[
+      {id:1,from:"James P.",time:"Jun 5, 11:05am",text:"Straightforward order — Bright Label only does 100% prepayment. Under $5k so single approval needed. Vendor rating is A+."},
+      {id:2,from:"Marcus T.",time:"Jun 6, 9:32am",text:"Approved. Looks good."},
+    ],
+  },
+  {
+    id:"PPR-0037",
+    summary:"Summit Goods Inc., Pre-Payment Request!",
+    po:"PO-2026-0037",
+    amount:42000, orderValue:84000,
+    prepayPct:50,
+    category:"Home & Gifts",
+    delivery:"2026-09-01",
+    terms:"50% on shipment",
+    exclusive:"Partially exclusive (select SKUs)",
+    vendorReason:"Holiday season production slot requires deposit to hold capacity.",
+    benefit:"Guaranteed Q4 production slot, 3% volume discount.",
+    frequency:"Possible recurring / not sure",
+    skus:"SKU-30101 — Ceramic Mug Set\nSKU-30102 — Candle Gift Set\nSKU-30103 — Throw Blanket",
+    status:"Pending", submittedBy:"Dana L.", submittedDate:"Jun 14, 2026",
+    approvalStep:1, unread:1,
+    attachments:[
+      {name:"Summit_PO_0037.pdf", type:"pdf", size:"520 KB", uploaded:"Jun 14"},
+      {name:"Summit_ProductionSchedule.pdf", type:"pdf", size:"310 KB", uploaded:"Jun 14"},
+    ],
+    history:[
+      {action:"Request submitted",detail:"Submitted by Dana L.",time:"Jun 14, 8:45am",color:"grey"},
+    ],
+    messages:[
+      {id:1,from:"Dana L.",time:"Jun 14, 8:50am",text:"Holiday anchor order — Summit needs approval by June 23 to hold our production slot. Flagging for expedited review. Over $5k so needs Sr. Dir., CMO, and Head of Finance."},
+    ],
+  },
+  {
+    id:"PPR-0035",
+    summary:"Threadline Co., Pre-Payment Request!",
+    po:"PO-2026-0035",
+    amount:9800, orderValue:19600,
+    prepayPct:50,
+    category:"Accessories",
+    delivery:"2026-07-10",
+    terms:"50% net-30",
+    exclusive:"No",
+    vendorReason:"Factory deposit required for custom hardware.",
+    benefit:"Custom hardware colorway exclusive to UG for 90 days.",
+    frequency:"One-time vendor ask",
+    skus:"SKU-40055 — Leather Wallet\nSKU-40056 — Card Holder",
+    status:"Rejected", submittedBy:"Sarah K.", submittedDate:"Jun 1, 2026",
+    approvalStep:2, unread:0,
+    attachments:[
+      {name:"Threadline_PO_0035.pdf", type:"pdf", size:"230 KB", uploaded:"Jun 1"},
+    ],
+    history:[
+      {action:"Request submitted",detail:"Submitted by Sarah K.",time:"Jun 1, 10:00am",color:"grey"},
+      {action:"Finance review blocked",detail:"Missing W-9 — Dana L. flagged.",time:"Jun 3, 11:30am",color:"red"},
+      {action:"Request rejected",detail:"Rejected — pending vendor W-9 update.",time:"Jun 4, 9:00am",color:"red"},
+    ],
+    messages:[
+      {id:1,from:"Dana L.",time:"Jun 3, 11:32am",text:"Can't process — Threadline's W-9 expired in March. Need an updated form before we can move forward."},
+      {id:2,from:"Sarah K.",time:"Jun 3, 2:00pm",text:"Understood, contacting their AR. May take a few days."},
+      {id:3,from:"Dana L.",time:"Jun 4, 9:02am",text:"Marking rejected for now. Resubmit once updated W-9 is received."},
+    ],
+  },
+];
+
+// ── STATE ──────────────────────────────────────────────────────────────────────
+let activeFilter = "all";
+let selectedId = null;
+let editingId = null;
+let pendingFile = null;
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function fmt(n) { return "$" + Number(n).toLocaleString("en-US", {minimumFractionDigits:0}); }
+function statusBadgeClass(s) {
+  return {"Pending":"badge-pending","In Review":"badge-review","Approved":"badge-approved","Rejected":"badge-rejected"}[s] || "badge-draft";
+}
+function getRoute(amount) { return amount >= THRESHOLD ? ROUTE_HIGH : ROUTE_LOW; }
+function nowStr() {
+  const d = new Date();
+  return d.toLocaleDateString("en-US",{month:"short",day:"numeric"}) + ", " +
+         d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
+}
+
+// ── SIDEBAR LIST ──────────────────────────────────────────────────────────────
+function renderList() {
+  const q = document.getElementById("searchInput").value.toLowerCase();
+  const list = document.getElementById("orderList");
+  list.innerHTML = "";
+  const filtered = orders.filter(o => {
+    if (activeFilter !== "all" && o.status !== activeFilter) return false;
+    if (q && !o.summary.toLowerCase().includes(q) && !o.id.toLowerCase().includes(q) && !o.po.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  if (!filtered.length) {
+    list.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">No requests found</div>`;
+    return;
+  }
+  filtered.forEach(o => {
+    const route = getRoute(o.amount);
+    const vendor = o.summary.split(",")[0];
+    const div = document.createElement("div");
+    div.className = "order-item" + (o.id === selectedId ? " selected" : "");
+    div.onclick = () => selectOrder(o.id);
+    div.innerHTML = `
+      <div class="order-item-top">
+        <span class="order-vendor">${vendor}</span>
+        <span class="order-amount">${fmt(o.amount)}</span>
+      </div>
+      <div class="order-meta">
+        <span class="order-id">${o.id}</span>
+        <span class="badge ${statusBadgeClass(o.status)}" style="font-size:10px;padding:2px 7px">${o.status}</span>
+      </div>
+      <span class="route-tag ${route.label}">${o.amount >= THRESHOLD ? "3-level approval" : "1-level approval"}</span>
+      ${o.unread ? `<div class="order-unread"></div>` : ""}
+    `;
+    list.appendChild(div);
+  });
+}
+
+function selectOrder(id) {
+  selectedId = id;
+  const o = orders.find(x => x.id === id);
+  if (!o) return;
+  o.unread = 0;
+  renderList();
+  renderDetail(o);
+}
+
+// ── DETAIL PANEL ──────────────────────────────────────────────────────────────
+function renderDetail(o) {
+  document.getElementById("emptyState").style.display = "none";
+  const panel = document.getElementById("orderDetail");
+  panel.style.display = "flex";
+
+  const steps = getSteps(o.amount);
+  const route = getRoute(o.amount);
+  const vendor = o.summary.split(",")[0];
+
+  const stepState = i => {
+    if (i < o.approvalStep) return "done";
+    if (i === o.approvalStep && o.status === "Rejected") return "rejected";
+    if (i === o.approvalStep) return "active";
+    return "pending";
+  };
+  const stepIcon = i => {
+    const s = stepState(i);
+    if (s === "done") return "✓";
+    if (s === "rejected") return "✕";
+    return (i + 1) + "";
+  };
+
+  const canAct = o.status === "Pending" || o.status === "In Review";
+
+  panel.innerHTML = `
+    <!-- HEADER -->
+    <div class="order-header">
+      <div class="order-header-left">
+        <h2>${o.summary}</h2>
+        <div class="subtitle">
+          ${o.id} &nbsp;·&nbsp; ${o.po} &nbsp;·&nbsp; ${o.category}<br>
+          Submitted ${o.submittedDate} by ${o.submittedBy}
+        </div>
+      </div>
+      <div class="order-header-right">
+        <span class="badge ${statusBadgeClass(o.status)}">${o.status}</span>
+        <button class="btn btn-ghost btn-sm" onclick="openEditModal('${o.id}')">Edit</button>
+      </div>
+    </div>
+
+    <!-- ROUTE BANNER -->
+    <div class="route-banner ${route.label}">
+      <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      ${o.amount >= THRESHOLD
+        ? `<strong>${fmt(o.amount)} — Over $5,000:</strong> Requires approval from Sr. Dir. of Merchandising, Chief Merchandising Officer, and Head of Finance.`
+        : `<strong>${fmt(o.amount)} — Under $5,000:</strong> Requires approval from Sr. Dir. of Merchandising only.`
+      }
+    </div>
+
+    <!-- TABS -->
+    <div class="tabs">
+      <div class="tab active" id="tab-details"      onclick="showTab('details')">Details</div>
+      <div class="tab" id="tab-conversation"        onclick="showTab('conversation')">Conversation <span class="tab-badge" id="msgCount">${o.messages.length}</span></div>
+      <div class="tab" id="tab-documents"           onclick="showTab('documents')">Documents <span class="tab-badge">${o.attachments.length}</span></div>
+      <div class="tab" id="tab-history"             onclick="showTab('history')">History</div>
+    </div>
+
+    <!-- TAB CONTENT -->
+    <div class="tab-content">
+
+      <!-- ── DETAILS ── -->
+      <div class="tab-pane active" id="pane-details">
+
+        <div class="detail-grid">
+          <div class="detail-card">
+            <h3>Payment Details</h3>
+            <div class="field-row"><span class="field-label">Pre-Payment Amount</span><span class="field-value amount">${fmt(o.amount)}</span></div>
+            <div class="field-row"><span class="field-label">Total PO Value</span><span class="field-value">${fmt(o.orderValue)}</span></div>
+            <div class="field-row"><span class="field-label">Pre-Payment %</span><span class="field-value">${o.prepayPct}%</span></div>
+            <div class="field-row"><span class="field-label">Payment Terms (Remainder)</span><span class="field-value">${o.terms}</span></div>
+            <div class="field-row"><span class="field-label">Requested Delivery</span><span class="field-value">${o.delivery || "TBD"}</span></div>
+          </div>
+          <div class="detail-card">
+            <h3>Vendor &amp; Order Info</h3>
+            <div class="field-row"><span class="field-label">Vendor</span><span class="field-value">${vendor}</span></div>
+            <div class="field-row"><span class="field-label">PO Number</span><span class="field-value">${o.po}</span></div>
+            <div class="field-row"><span class="field-label">Category</span><span class="field-value">${o.category}</span></div>
+            <div class="field-row"><span class="field-label">Exclusive Item?</span><span class="field-value">${o.exclusive}</span></div>
+            <div class="field-row"><span class="field-label">Frequency</span><span class="field-value">${o.frequency}</span></div>
+          </div>
+        </div>
+
+        <div class="detail-card-full">
+          <h3>SKU(s) Number and Description</h3>
+          <p style="white-space:pre-wrap">${o.skus}</p>
+        </div>
+
+        <div class="detail-grid">
+          <div class="detail-card">
+            <h3>Vendor Reason</h3>
+            <p style="font-size:13px;line-height:1.6;color:var(--text-secondary)">${o.vendorReason}</p>
+          </div>
+          <div class="detail-card">
+            <h3>Negotiated Benefit to UG</h3>
+            <p style="font-size:13px;line-height:1.6;color:var(--text-secondary)">${o.benefit}</p>
+          </div>
+        </div>
+
+        <!-- APPROVAL TRACK -->
+        <div class="approval-track">
+          <h3>Approval Progress &nbsp;<span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-secondary)">${route.label === "high" ? "3-level (over $5,000)" : "1-level (under $5,000)"}</span></h3>
+          <div class="track-steps">
+            ${steps.map((s,i) => `
+              <div class="track-step ${stepState(i)}">
+                <div class="step-dot ${stepState(i)}">${stepIcon(i)}</div>
+                <div class="step-label">${s}</div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+
+        <!-- ACTION BAR -->
+        ${canAct ? `
+        <div class="action-bar">
+          <span>Current step: <strong>${steps[o.approvalStep] || "Complete"}</strong></span>
+          <button class="btn btn-danger" onclick="rejectOrder('${o.id}')">Reject</button>
+          <button class="btn btn-success" onclick="approveStep('${o.id}')">Approve This Step</button>
+        </div>` : `
+        <div class="action-bar">
+          <span style="color:var(--text-muted)">This request has been <strong>${o.status.toLowerCase()}</strong>.</span>
+          ${o.status === "Rejected" ? `<button class="btn btn-primary btn-sm" onclick="openEditModal('${o.id}')">Edit &amp; Resubmit</button>` : ""}
+        </div>`}
+      </div>
+
+      <!-- ── CONVERSATION ── -->
+      <div class="tab-pane" id="pane-conversation" style="padding:0">
+        <div class="conversation-wrap">
+          <div class="messages-list" id="msgList">
+            <div class="msg-system">Conversation started ${o.submittedDate}</div>
+            ${o.messages.map(renderMsg).join("")}
+          </div>
+          <div class="compose-area">
+            <div class="compose-inner">
+              <textarea class="compose-input" id="composeBox" rows="1" placeholder="Write a message…" onkeydown="handleCompose(event,'${o.id}')"></textarea>
+              <button class="btn btn-primary" onclick="sendMsg('${o.id}')">Send</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── DOCUMENTS ── -->
+      <div class="tab-pane" id="pane-documents">
+        <div class="doc-list" id="docList">
+          ${o.attachments.map(d => docItemHtml(d)).join("")}
+        </div>
+        ${!o.attachments.length ? `<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:24px">No attachments yet.</div>` : ""}
+        <div style="margin-top:16px">
+          <button class="btn btn-ghost" onclick="alert('Upload: attach files via the Edit form.')">+ Attach File</button>
+        </div>
+      </div>
+
+      <!-- ── HISTORY ── -->
+      <div class="tab-pane" id="pane-history">
+        <div class="history-list">
+          ${o.history.map((h,i) => `
+            <div class="history-item">
+              <div class="hist-dot-col">
+                <div class="hist-dot ${h.color === 'green' ? 'green' : h.color === 'red' ? 'red' : 'grey'}"></div>
+                ${i < o.history.length-1 ? '<div class="hist-line"></div>' : ""}
+              </div>
+              <div class="hist-content">
+                <div class="hist-action">${h.action}</div>
+                <div class="hist-detail">${h.detail}</div>
+              </div>
+              <div class="hist-time">${h.time}</div>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+
+    </div>
+  `;
+}
+
+function docItemHtml(d) {
+  return `<div class="doc-item">
+    <div class="doc-icon ${d.type}">${d.type==="pdf"?"📄":d.type==="xlsx"?"📊":"🖼️"}</div>
+    <div class="doc-info"><div class="doc-name">${d.name}</div><div class="doc-meta">${d.size} · Uploaded ${d.uploaded}</div></div>
+    <div class="doc-actions"><button class="btn btn-ghost btn-sm">View</button><button class="btn btn-ghost btn-sm">Download</button></div>
+  </div>`;
+}
+
+function renderMsg(m) {
+  const isMe = m.from === "You";
+  const a = AVATARS[m.from] || {initials:m.from.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase(), color:"#6b7280"};
+  return `<div class="msg${isMe?" me":""}">
+    <div class="msg-avatar" style="background:${a.color}">${a.initials}</div>
+    <div class="msg-body">
+      <div class="msg-meta">${m.from} · ${m.time}</div>
+      <div class="msg-bubble">${m.text}</div>
+    </div>
+  </div>`;
+}
+
+// ── TAB SWITCHING ─────────────────────────────────────────────────────────────
+function showTab(name) {
+  ["details","conversation","documents","history"].forEach(t => {
+    document.getElementById("tab-"+t)?.classList.remove("active");
+    document.getElementById("pane-"+t)?.classList.remove("active");
+  });
+  document.getElementById("tab-"+name)?.classList.add("active");
+  document.getElementById("pane-"+name)?.classList.add("active");
+  if (name === "conversation") {
+    const ml = document.getElementById("msgList");
+    if (ml) setTimeout(() => { ml.scrollTop = ml.scrollHeight; }, 0);
+  }
+}
+
+// ── FILTER ────────────────────────────────────────────────────────────────────
+function setFilter(f, el) {
+  activeFilter = f;
+  document.querySelectorAll(".filter-chip").forEach(c => c.classList.remove("active"));
+  el.classList.add("active");
+  renderList();
+}
+function filterOrders() { renderList(); }
+
+// ── APPROVAL ACTIONS ──────────────────────────────────────────────────────────
+function approveStep(id) {
+  const o = orders.find(x => x.id === id);
+  if (!o) return;
+  const steps = getSteps(o.amount);
+  const stepName = steps[o.approvalStep] || "Step";
+  o.history.push({action:`${stepName} approved`, detail:`Approved by You`, time:nowStr(), color:"green"});
+  o.messages.push({id:Date.now(), from:"You", time:nowStr(), text:`✓ Approved at the "${stepName}" stage.`});
+  o.approvalStep++;
+  o.status = o.approvalStep >= steps.length ? "Approved" : "In Review";
+  renderList();
+  renderDetail(o);
+}
+
+function rejectOrder(id) {
+  const o = orders.find(x => x.id === id);
+  if (!o) return;
+  const reason = prompt("Reason for rejection (optional):");
+  const steps = getSteps(o.amount);
+  o.status = "Rejected";
+  o.history.push({action:"Request rejected", detail:`Rejected by You${reason ? ": "+reason : ""}`, time:nowStr(), color:"red"});
+  o.messages.push({id:Date.now(), from:"You", time:nowStr(), text:`✕ Request rejected${reason ? ": "+reason : "."}`});
+  renderList();
+  renderDetail(o);
+}
+
+// ── CONVERSATION ──────────────────────────────────────────────────────────────
+function handleCompose(e, id) {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(id); }
+}
+function sendMsg(id) {
+  const box = document.getElementById("composeBox");
+  const text = box?.value.trim();
+  if (!text) return;
+  const o = orders.find(x => x.id === id);
+  if (!o) return;
+  const msg = {id:Date.now(), from:"You", time:nowStr(), text};
+  o.messages.push(msg);
+  box.value = "";
+  const ml = document.getElementById("msgList");
+  const div = document.createElement("div");
+  div.innerHTML = renderMsg(msg);
+  ml.appendChild(div.firstChild);
+  ml.scrollTop = ml.scrollHeight;
+  document.getElementById("msgCount").textContent = o.messages.length;
+}
+
+// ── MODAL: ROUTE PREVIEW ──────────────────────────────────────────────────────
+function updateRoutePreview() {
+  const amount = parseFloat(document.getElementById("nAmount")?.value) || 0;
+  const prev = document.getElementById("routePreview");
+  const hint = document.getElementById("routeHint");
+  if (!prev) return;
+  if (!amount) {
+    prev.className = "route-preview"; // hide
+    if (hint) hint.textContent = "";
+    return;
+  }
+  const route = getRoute(amount);
+  prev.className = `route-preview show ${route.label}`;
+  document.getElementById("routeTitle").textContent = route.title;
+  document.getElementById("routeList").innerHTML = route.approvers.map(a => `<li>${a}</li>`).join("");
+  if (hint) hint.textContent = amount >= THRESHOLD
+    ? "Over $5,000 — 3-level approval required."
+    : "Under $5,000 — 1-level approval required.";
+}
+
+// ── MODAL: FILE UPLOAD ────────────────────────────────────────────────────────
+function handleFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  pendingFile = {name:file.name, type:file.name.split(".").pop().toLowerCase(), size:formatBytes(file.size), uploaded:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"})};
+  document.getElementById("fileNameDisplay").textContent = "📎 " + file.name;
+}
+function formatBytes(b) {
+  if (b < 1024) return b + " B";
+  if (b < 1048576) return Math.round(b/1024) + " KB";
+  return (b/1048576).toFixed(1) + " MB";
+}
+
+// ── MODAL: OPEN / CLOSE ───────────────────────────────────────────────────────
+function openNewModal() {
+  editingId = null;
+  pendingFile = null;
+  document.getElementById("modalTitle").textContent = "New Prepayment Request";
+  document.getElementById("modalSubmitBtn").textContent = "Submit Request";
+  document.getElementById("modalSubmitBtn").onclick = createOrder;
+  clearModal();
+  document.getElementById("newModal").classList.add("open");
+}
+
+function openEditModal(id) {
+  const o = orders.find(x => x.id === id);
+  if (!o) return;
+  editingId = id;
+  pendingFile = null;
+  document.getElementById("modalTitle").textContent = "Edit Request — " + o.id;
+  document.getElementById("modalSubmitBtn").textContent = "Save Changes";
+  document.getElementById("modalSubmitBtn").onclick = saveEdit;
+  clearModal();
+  document.getElementById("nSummary").value   = o.summary;
+  document.getElementById("nPO").value        = o.po;
+  document.getElementById("nAmount").value    = o.amount;
+  document.getElementById("nOrderValue").value= o.orderValue;
+  document.getElementById("nPrepayPct").value = o.prepayPct;
+  document.getElementById("nTerms").value     = o.terms;
+  document.getElementById("nDelivery").value  = o.delivery || "";
+  document.getElementById("nExclusive").value = o.exclusive;
+  document.getElementById("nVendorReason").value = o.vendorReason;
+  document.getElementById("nBenefit").value   = o.benefit;
+  document.getElementById("nSkus").value      = o.skus;
+  document.getElementById("nCategory").value  = o.category;
+  const freqInputs = document.querySelectorAll("input[name='freq']");
+  freqInputs.forEach(r => { if (r.value === o.frequency) r.checked = true; });
+  updateRoutePreview();
+  document.getElementById("newModal").classList.add("open");
+}
+
+function clearModal() {
+  ["nSummary","nPO","nAmount","nOrderValue","nPrepayPct","nTerms","nDelivery","nVendorReason","nBenefit","nSkus"].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = "";
+  });
+  document.querySelectorAll("input[name='freq']").forEach(r => r.checked = false);
+  document.getElementById("fileNameDisplay").textContent = "";
+  document.getElementById("routePreview").className = "route-preview";
+  document.getElementById("routeHint").textContent = "";
+}
+
+function closeNewModal() { document.getElementById("newModal").classList.remove("open"); }
+
+document.getElementById("newModal").addEventListener("click", function(e) {
+  if (e.target === this) closeNewModal();
+});
+
+// ── CREATE ORDER ──────────────────────────────────────────────────────────────
+function createOrder() {
+  const summary = document.getElementById("nSummary").value.trim();
+  const po      = document.getElementById("nPO").value.trim();
+  const amount  = parseFloat(document.getElementById("nAmount").value) || 0;
+  const skus    = document.getElementById("nSkus").value.trim();
+  const pct     = parseFloat(document.getElementById("nPrepayPct").value) || 0;
+  const terms   = document.getElementById("nTerms").value.trim();
+  const exclusive = document.getElementById("nExclusive").value;
+  const vendorReason = document.getElementById("nVendorReason").value.trim();
+  const benefit = document.getElementById("nBenefit").value.trim();
+  const freqEl  = document.querySelector("input[name='freq']:checked");
+
+  if (!summary || !po || !amount || !skus || !pct || !terms || !exclusive || !vendorReason || !benefit || !freqEl) {
+    alert("Please fill in all required fields (marked with *)."); return;
+  }
+
+  const id = "PPR-" + String(Math.floor(Math.random()*900)+100).padStart(4,"0");
+  const orderValue = parseFloat(document.getElementById("nOrderValue").value) || amount;
+  const delivery   = document.getElementById("nDelivery").value || "TBD";
+  const category   = document.getElementById("nCategory").value;
+  const todayStr   = new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+  const route = getRoute(amount);
+
+  const attachments = pendingFile ? [pendingFile] : [];
+
+  const newOrder = {
+    id, summary, po, amount, orderValue, prepayPct:pct, category, delivery, terms,
+    exclusive, vendorReason, benefit, frequency:freqEl.value, skus,
+    status:"Pending", submittedBy:"You", submittedDate:todayStr,
+    approvalStep:1, unread:0,
+    attachments,
+    history:[{action:"Request submitted", detail:"Submitted by You", time:nowStr(), color:"grey"}],
+    messages:[{id:1, from:"You", time:nowStr(),
+      text:`New prepayment request submitted: ${summary} — ${fmt(amount)}. Approval route: ${route.approvers.join(" → ")}.`}],
+  };
+
+  orders.unshift(newOrder);
+  closeNewModal();
+  renderList();
+  selectOrder(id);
+  sendSlackNotification(newOrder);
+}
+
+// ── SAVE EDIT ─────────────────────────────────────────────────────────────────
+function saveEdit() {
+  const o = orders.find(x => x.id === editingId);
+  if (!o) return;
+  o.summary      = document.getElementById("nSummary").value.trim() || o.summary;
+  o.po           = document.getElementById("nPO").value.trim() || o.po;
+  o.amount       = parseFloat(document.getElementById("nAmount").value) || o.amount;
+  o.orderValue   = parseFloat(document.getElementById("nOrderValue").value) || o.orderValue;
+  o.prepayPct    = parseFloat(document.getElementById("nPrepayPct").value) || o.prepayPct;
+  o.terms        = document.getElementById("nTerms").value.trim() || o.terms;
+  o.delivery     = document.getElementById("nDelivery").value || o.delivery;
+  o.exclusive    = document.getElementById("nExclusive").value || o.exclusive;
+  o.vendorReason = document.getElementById("nVendorReason").value.trim() || o.vendorReason;
+  o.benefit      = document.getElementById("nBenefit").value.trim() || o.benefit;
+  o.skus         = document.getElementById("nSkus").value.trim() || o.skus;
+  o.category     = document.getElementById("nCategory").value;
+  const freqEl = document.querySelector("input[name='freq']:checked");
+  if (freqEl) o.frequency = freqEl.value;
+  if (pendingFile) o.attachments.push(pendingFile);
+  // if editing a rejected request, reset to pending
+  if (o.status === "Rejected") { o.status = "Pending"; o.approvalStep = 1; }
+  o.history.push({action:"Request edited", detail:"Updated by You", time:nowStr(), color:"grey"});
+  closeNewModal();
+  renderList();
+  renderDetail(o);
+}
+
+// ── SLACK NOTIFICATION ────────────────────────────────────────────────────────
+// Slack webhook is set server-side via SLACK_WEBHOOK environment variable (not stored in client code)
+
+// Update this to your hosted URL when deployed (e.g. https://yourcompany.com/prepayment-tracker)
+const TRACKER_URL = "http://localhost:3500";
+
+// Approver Slack IDs — swap these out when going live
+const APPROVERS = {
+  srDir:   { name:"Palmer Yee",   id:"U03029974AG" },  // Sr. Dir. of Merchandising
+  cmo:     { name:"Jenny Xie",    id:"U02GF436S9X" },  // Chief Merchandising Officer
+  finance: { name:"Joanne Zhong", id:"U08JWQL4T"   },  // Head of Finance
+};
+
+function getApproversForAmount(amount) {
+  return amount >= THRESHOLD
+    ? [APPROVERS.srDir, APPROVERS.cmo, APPROVERS.finance]
+    : [APPROVERS.srDir];
+}
+
+function sendSlackNotification(order) {
+  const approvers   = getApproversForAmount(order.amount);
+  const mentions    = approvers.map(a => `<@${a.id}>`).join("  ");
+  const routeLabel  = order.amount >= THRESHOLD
+    ? `:warning: *Over $5,000* — requires 3-level approval`
+    : `:information_source: *Under $5,000* — requires 1-level approval`;
+  const approverNames = approvers.map(a => `• ${a.name}`).join("\n");
+  const vendor = order.summary.split(",")[0];
+
+  const payload = {
+    text: `New Prepayment Request submitted: ${order.summary}`,
+    blocks: [
+      {
+        type: "header",
+        text: { type: "plain_text", text: "🔔 New Prepayment Request — Action Required", emoji: true }
+      },
+      {
+        type: "section",
+        fields: [
+          { type: "mrkdwn", text: `*Request ID:*\n${order.id}` },
+          { type: "mrkdwn", text: `*Vendor:*\n${vendor}` },
+          { type: "mrkdwn", text: `*Pre-Payment Amount:*\n${fmt(order.amount)}` },
+          { type: "mrkdwn", text: `*PO Number:*\n${order.po}` },
+          { type: "mrkdwn", text: `*Pre-Payment %:*\n${order.prepayPct}%` },
+          { type: "mrkdwn", text: `*Category:*\n${order.category}` },
+          { type: "mrkdwn", text: `*Requested Delivery:*\n${order.delivery || "TBD"}` },
+          { type: "mrkdwn", text: `*Submitted By:*\n${order.submittedBy}` },
+        ]
+      },
+      { type: "divider" },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `*SKU(s):*\n${order.skus}` }
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `*Vendor Reason:*\n${order.vendorReason}` }
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `*Negotiated Benefit to UG:*\n${order.benefit}` }
+      },
+      { type: "divider" },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `${routeLabel}\n\n*Approvers required:*\n${approverNames}`
+        }
+      },
+      {
+        type: "context",
+        elements: [
+          { type: "mrkdwn", text: `*Please review:*  ${mentions}` }
+        ]
+      },
+      { type: "divider" },
+      {
+        type: "actions",
+        elements: [
+          {
+            type: "button",
+            text: { type: "plain_text", text: "🔗 Open Prepayment Tracker", emoji: true },
+            style: "primary",
+            url: `${TRACKER_URL}?request=${order.id}`
+          }
+        ]
+      },
+      {
+        type: "context",
+        elements: [
+          { type: "mrkdwn", text: `_Request ${order.id} · Submitted by ${order.submittedBy} · ${order.submittedDate}_` }
+        ]
+      }
+    ]
+  };
+
+  // POST to local proxy — server.py forwards to Slack (avoids browser CORS restrictions)
+  fetch("/notify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.ok) showToast("✓ Slack notification sent to #prepayment-approvals", "success");
+    else         showToast("Request saved — Slack error: " + data.error, "warn");
+  })
+  .catch(() => showToast("Request saved — could not reach Slack", "warn"));
+}
+
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+function showToast(msg, type = "success") {
+  const existing = document.getElementById("toast");
+  if (existing) existing.remove();
+  const t = document.createElement("div");
+  t.id = "toast";
+  const bg = type === "success" ? "#16a34a" : type === "warn" ? "#d97706" : "#dc2626";
+  t.style.cssText = `position:fixed;bottom:24px;right:24px;background:${bg};color:#fff;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,.2);z-index:999;max-width:340px;line-height:1.4;`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+renderList();
+</script>
+</body>
+</html>
