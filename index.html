@@ -544,6 +544,14 @@ function renderDetail(o) {
     return (i + 1) + "";
   };
 
+  // Self-heal orders stuck in "In Review" when all approval steps are already done
+  if ((o.status === "Pending" || o.status === "In Review") && o.approvalStep >= steps.length - 1) {
+    o.status = "Approved";
+    o.history.push({action:"Status corrected", detail:"Automatically marked Approved — all steps complete", time:nowStr(), color:"green"});
+    updateOrder(o);
+    renderList();
+  }
+
   const canAct = o.status === "Pending" || o.status === "In Review";
 
   panel.innerHTML = `
