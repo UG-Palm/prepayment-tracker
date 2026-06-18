@@ -826,7 +826,7 @@ function docItemHtml(d) {
 }
 
 function renderMsg(m) {
-  const isMe = m.from === "You";
+  const isMe = m.from === (currentUser || "You") || m.from === "You";
   const a = AVATARS[m.from] || {initials:m.from.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase(), color:"#6b7280"};
   return `<div class="msg${isMe?" me":""}">
     <div class="msg-avatar" style="background:${a.color}">${a.initials}</div>
