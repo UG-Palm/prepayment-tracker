@@ -757,7 +757,7 @@ function approveStep(id) {
   o.history.push({action:`${stepName} approved`, detail:`Approved by ${approverName}`, time:nowStr(), color:"green"});
   o.messages.push({id:Date.now(), from:approverName, time:nowStr(), text:`✓ Approved at the "${stepName}" stage.`});
   o.approvalStep++;
-  o.status = o.approvalStep >= steps.length ? "Approved" : "In Review";
+  o.status = o.approvalStep >= steps.length - 1 ? "Approved" : "In Review";
   updateOrder(o);
   sendApprovalNotification(o, stepName, o.status === "Approved");
   // DM the next required approver now that it's their turn
