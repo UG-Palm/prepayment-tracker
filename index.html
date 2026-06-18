@@ -452,125 +452,8 @@ const AVATARS = {
   "You":       { initials:"YP", color:"#0052cc" },
 };
 
-// ── SAMPLE DATA ────────────────────────────────────────────────────────────────
-const orders = [
-  {
-    id:"PPR-0041",
-    summary:"Acme Merch Co., Pre-Payment Request!",
-    po:"PO-2026-0041",
-    amount:18500, orderValue:37000,
-    prepayPct:50,
-    category:"Apparel",
-    delivery:"2026-08-15",
-    terms:"50% net-30 after shipment",
-    exclusive:"Yes — exclusively developed for UG",
-    vendorReason:"Custom embroidery run requires upfront materials cost commitment.",
-    benefit:"Exclusive colorway lock-in for Q3 launch, 5% unit price discount.",
-    frequency:"One-time vendor ask",
-    skus:"SKU-10042 — Classic Logo Tee (S/M/L/XL)\nSKU-10043 — Embroidered Cap",
-    status:"In Review", submittedBy:"Sarah K.", submittedDate:"Jun 10, 2026",
-    approvalStep:2, unread:2,
-    attachments:[
-      {name:"Acme_PO_0041.pdf", type:"pdf", size:"284 KB", uploaded:"Jun 10"},
-      {name:"Acme_VendorAgreement_2026.pdf", type:"pdf", size:"1.2 MB", uploaded:"Jun 10"},
-    ],
-    history:[
-      {action:"Request submitted",detail:"Submitted by Sarah K.",time:"Jun 10, 9:14am",color:"grey"},
-      {action:"Sr. Dir. Merchandising approved",detail:"Approved by Marcus T. — SKUs confirmed.",time:"Jun 11, 10:05am",color:"green"},
-    ],
-    messages:[
-      {id:1,from:"Sarah K.",time:"Jun 10, 9:20am",text:"Heads up — Acme needs the first payment by June 30 or they'll push our slot. Let me know if there are any questions on the PO."},
-      {id:2,from:"Marcus T.",time:"Jun 11, 10:06am",text:"SKUs look good on my end. Confirmed the colorways and sizes match the buy plan. Approving Sr. Dir. step."},
-      {id:3,from:"Dana L.",time:"Jun 12, 2:00pm",text:"CMO review in progress. Will update by EOD."},
-    ],
-  },
-  {
-    id:"PPR-0039",
-    summary:"Bright Label Studio, Pre-Payment Request!",
-    po:"PO-2026-0039",
-    amount:4200, orderValue:4200,
-    prepayPct:100,
-    category:"Stationery",
-    delivery:"2026-07-20",
-    terms:"100% prepayment — no balance",
-    exclusive:"No",
-    vendorReason:"Small-run studio policy: 100% prepayment required for all orders under $10k.",
-    benefit:"Priority production slot secured.",
-    frequency:"One-time vendor ask",
-    skus:"SKU-20881 — Greeting Card Set A (12-pack)\nSKU-20882 — Greeting Card Set B (12-pack)",
-    status:"Approved", submittedBy:"James P.", submittedDate:"Jun 5, 2026",
-    approvalStep:3, unread:0,
-    attachments:[
-      {name:"BrightLabel_PO_0039.pdf", type:"pdf", size:"196 KB", uploaded:"Jun 5"},
-    ],
-    history:[
-      {action:"Request submitted",detail:"Submitted by James P.",time:"Jun 5, 11:00am",color:"grey"},
-      {action:"Sr. Dir. Merchandising approved",detail:"Approved by Marcus T.",time:"Jun 6, 9:30am",color:"green"},
-      {action:"Request fully approved",detail:"Payment authorized.",time:"Jun 7, 10:00am",color:"green"},
-    ],
-    messages:[
-      {id:1,from:"James P.",time:"Jun 5, 11:05am",text:"Straightforward order — Bright Label only does 100% prepayment. Under $5k so single approval needed. Vendor rating is A+."},
-      {id:2,from:"Marcus T.",time:"Jun 6, 9:32am",text:"Approved. Looks good."},
-    ],
-  },
-  {
-    id:"PPR-0037",
-    summary:"Summit Goods Inc., Pre-Payment Request!",
-    po:"PO-2026-0037",
-    amount:42000, orderValue:84000,
-    prepayPct:50,
-    category:"Home & Gifts",
-    delivery:"2026-09-01",
-    terms:"50% on shipment",
-    exclusive:"Partially exclusive (select SKUs)",
-    vendorReason:"Holiday season production slot requires deposit to hold capacity.",
-    benefit:"Guaranteed Q4 production slot, 3% volume discount.",
-    frequency:"Possible recurring / not sure",
-    skus:"SKU-30101 — Ceramic Mug Set\nSKU-30102 — Candle Gift Set\nSKU-30103 — Throw Blanket",
-    status:"Pending", submittedBy:"Dana L.", submittedDate:"Jun 14, 2026",
-    approvalStep:1, unread:1,
-    attachments:[
-      {name:"Summit_PO_0037.pdf", type:"pdf", size:"520 KB", uploaded:"Jun 14"},
-      {name:"Summit_ProductionSchedule.pdf", type:"pdf", size:"310 KB", uploaded:"Jun 14"},
-    ],
-    history:[
-      {action:"Request submitted",detail:"Submitted by Dana L.",time:"Jun 14, 8:45am",color:"grey"},
-    ],
-    messages:[
-      {id:1,from:"Dana L.",time:"Jun 14, 8:50am",text:"Holiday anchor order — Summit needs approval by June 23 to hold our production slot. Flagging for expedited review. Over $5k so needs Sr. Dir., CMO, and Head of Finance."},
-    ],
-  },
-  {
-    id:"PPR-0035",
-    summary:"Threadline Co., Pre-Payment Request!",
-    po:"PO-2026-0035",
-    amount:9800, orderValue:19600,
-    prepayPct:50,
-    category:"Accessories",
-    delivery:"2026-07-10",
-    terms:"50% net-30",
-    exclusive:"No",
-    vendorReason:"Factory deposit required for custom hardware.",
-    benefit:"Custom hardware colorway exclusive to UG for 90 days.",
-    frequency:"One-time vendor ask",
-    skus:"SKU-40055 — Leather Wallet\nSKU-40056 — Card Holder",
-    status:"Rejected", submittedBy:"Sarah K.", submittedDate:"Jun 1, 2026",
-    approvalStep:2, unread:0,
-    attachments:[
-      {name:"Threadline_PO_0035.pdf", type:"pdf", size:"230 KB", uploaded:"Jun 1"},
-    ],
-    history:[
-      {action:"Request submitted",detail:"Submitted by Sarah K.",time:"Jun 1, 10:00am",color:"grey"},
-      {action:"Finance review blocked",detail:"Missing W-9 — Dana L. flagged.",time:"Jun 3, 11:30am",color:"red"},
-      {action:"Request rejected",detail:"Rejected — pending vendor W-9 update.",time:"Jun 4, 9:00am",color:"red"},
-    ],
-    messages:[
-      {id:1,from:"Dana L.",time:"Jun 3, 11:32am",text:"Can't process — Threadline's W-9 expired in March. Need an updated form before we can move forward."},
-      {id:2,from:"Sarah K.",time:"Jun 3, 2:00pm",text:"Understood, contacting their AR. May take a few days."},
-      {id:3,from:"Dana L.",time:"Jun 4, 9:02am",text:"Marking rejected for now. Resubmit once updated W-9 is received."},
-    ],
-  },
-];
+// ── DATA (loaded from Supabase via server) ────────────────────────────────────
+let orders = [];
 
 // ── STATE ──────────────────────────────────────────────────────────────────────
 let activeFilter = "all";
@@ -863,6 +746,7 @@ function approveStep(id) {
   o.messages.push({id:Date.now(), from:"You", time:nowStr(), text:`✓ Approved at the "${stepName}" stage.`});
   o.approvalStep++;
   o.status = o.approvalStep >= steps.length ? "Approved" : "In Review";
+  updateOrder(o);
   renderList();
   renderDetail(o);
 }
@@ -875,6 +759,7 @@ function rejectOrder(id) {
   o.status = "Rejected";
   o.history.push({action:"Request rejected", detail:`Rejected by You${reason ? ": "+reason : ""}`, time:nowStr(), color:"red"});
   o.messages.push({id:Date.now(), from:"You", time:nowStr(), text:`✕ Request rejected${reason ? ": "+reason : "."}`});
+  updateOrder(o);
   renderList();
   renderDetail(o);
 }
@@ -1028,6 +913,7 @@ function createOrder() {
   closeNewModal();
   renderList();
   selectOrder(id);
+  saveOrder(newOrder);
   sendSlackNotification(newOrder);
 }
 
@@ -1053,6 +939,7 @@ function saveEdit() {
   // if editing a rejected request, reset to pending
   if (o.status === "Rejected") { o.status = "Pending"; o.approvalStep = 1; }
   o.history.push({action:"Request edited", detail:"Updated by You", time:nowStr(), color:"grey"});
+  updateOrder(o);
   closeNewModal();
   renderList();
   renderDetail(o);
@@ -1181,8 +1068,41 @@ function showToast(msg, type = "success") {
   setTimeout(() => t.remove(), 4000);
 }
 
+// ── PERSISTENCE HELPERS ───────────────────────────────────────────────────────
+async function saveOrder(order) {
+  await fetch("/api/orders", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(order),
+  });
+}
+
+async function updateOrder(order) {
+  await fetch("/api/orders/update", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(order),
+  });
+}
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
-renderList();
+async function loadOrders() {
+  const list = document.getElementById("orderList");
+  list.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">Loading…</div>`;
+  try {
+    const res  = await fetch("/api/orders");
+    const data = await res.json();
+    orders = Array.isArray(data) ? data : [];
+  } catch (e) {
+    orders = [];
+    showToast("Could not load orders from server", "warn");
+  }
+  renderList();
+  // auto-select first order if available
+  if (orders.length) selectOrder(orders[0].id);
+}
+
+loadOrders();
 </script>
 </body>
 </html>

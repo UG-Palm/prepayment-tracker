@@ -4,29 +4,82 @@ import urllib.request
 import urllib.error
 import os
 
-SLACK_WEBHOOK = os.environ.get("SLACK_WEBHOOK", "")
-PORT = int(os.environ.get("PORT", 3500))
-STATIC_DIR = os.path.dirname(os.path.abspath(__file__))
+SLACK_WEBHOOK  = os.environ.get("SLACK_WEBHOOK", "")
+SUPABASE_URL   = os.environ.get("SUPABASE_URL", "")
+SUPABASE_KEY   = os.environ.get("SUPABASE_KEY", "")
+PORT           = int(os.environ.get("PORT", 3500))
+STATIC_DIR     = os.path.dirname(os.path.abspath(__file__))
+
+def supabase_headers():
+    return {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+    }
+
+def supabase_get_orders():
+    url = f"{SUPABASE_URL}/rest/v1/orders?select=id,data,created_at&order=created_at.desc"
+    req = urllib.request.Request(url, headers=supabase_headers())
+    with urllib.request.urlopen(req, timeout=10) as res:
+        rows = json.loads(res.read())
+    return [row["data"] for row in rows]
+
+def supabase_save_order(order):
+    url  = f"{SUPABASE_URL}/rest/v1/orders"
+    body = json.dumps({"id": order["id"], "data": order}).encode()
+    headers = {**supabase_headers(), "Prefer": "resolution=merge-duplicates"}
+    req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+    urllib.request.urlopen(req, timeout=10)
+
+def supabase_update_order(order):
+    url  = f"{SUPABASE_URL}/rest/v1/orders?id=eq.{order['id']}"
+    body = json.dumps({"data": order}).encode()
+    headers = {**supabase_headers(), "Prefer": "return=minimal"}
+    req = urllib.request.Request(url, data=body, headers=headers, method="PATCH")
+    urllib.request.urlopen(req, timeout=10)
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=STATIC_DIR, **kwargs)
 
+    def do_GET(self):
+        if self.path == "/api/orders":
+            try:
+                orders = supabase_get_orders()
+                self._respond(200, orders)
+            except Exception as e:
+                self._respond(500, {"error": str(e)})
+        else:
+            super().do_GET()
+
     def do_POST(self):
-        if self.path == "/notify":
-            length = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(length)
+        length = int(self.headers.get("Content-Length", 0))
+        body   = self.rfile.read(length)
+
+        if self.path == "/api/orders":
+            try:
+                order = json.loads(body)
+                supabase_save_order(order)
+                self._respond(200, {"ok": True})
+            except Exception as e:
+                self._respond(500, {"ok": False, "error": str(e)})
+
+        elif self.path == "/api/orders/update":
+            try:
+                order = json.loads(body)
+                supabase_update_order(order)
+                self._respond(200, {"ok": True})
+            except Exception as e:
+                self._respond(500, {"ok": False, "error": str(e)})
+
+        elif self.path == "/notify":
             try:
                 req = urllib.request.Request(
-                    SLACK_WEBHOOK,
-                    data=body,
-                    headers={"Content-Type": "application/json"},
-                    method="POST"
+                    SLACK_WEBHOOK, data=body,
+                    headers={"Content-Type": "application/json"}, method="POST"
                 )
                 urllib.request.urlopen(req, timeout=5)
                 self._respond(200, {"ok": True})
-            except urllib.error.HTTPError as e:
-                self._respond(502, {"ok": False, "error": str(e)})
             except Exception as e:
                 self._respond(502, {"ok": False, "error": str(e)})
         else:
@@ -44,7 +97,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
