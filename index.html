@@ -631,12 +631,19 @@ function renderDetail(o) {
         </div>
 
         <!-- ACTION BAR -->
-        ${canAct ? `
+        ${canAct ? (() => {
+          const requiredApprover = getStepApprover(o);
+          const stepLabel = steps[o.approvalStep] || "Complete";
+          if (requiredApprover) {
+            return `
         <div class="action-bar">
-          <span>Current step: <strong>${steps[o.approvalStep] || "Complete"}</strong></span>
+          <span>Waiting on: <strong>${requiredApprover.name}</strong> to approve <em>${stepLabel}</em></span>
           <button class="btn btn-danger" onclick="rejectOrder('${o.id}')">Reject</button>
           <button class="btn btn-success" onclick="approveStep('${o.id}')">Approve This Step</button>
-        </div>` : `
+        </div>`;
+          }
+          return `<div class="action-bar"><span>Processing approval…</span></div>`;
+        })() : `
         <div class="action-bar">
           <span style="color:var(--text-muted)">This request has been <strong>${o.status.toLowerCase()}</strong>.</span>
           ${o.status === "Rejected" ? `<button class="btn btn-primary btn-sm" onclick="openEditModal('${o.id}')">Edit &amp; Resubmit</button>` : ""}
@@ -742,14 +749,64 @@ function approveStep(id) {
   if (!o) return;
   const steps = getSteps(o.amount);
   const stepName = steps[o.approvalStep] || "Step";
-  o.history.push({action:`${stepName} approved`, detail:`Approved by You`, time:nowStr(), color:"green"});
-  o.messages.push({id:Date.now(), from:"You", time:nowStr(), text:`✓ Approved at the "${stepName}" stage.`});
+  const approverWho = getStepApprover(o);
+  const approverName = approverWho ? approverWho.name : "You";
+  o.history.push({action:`${stepName} approved`, detail:`Approved by ${approverName}`, time:nowStr(), color:"green"});
+  o.messages.push({id:Date.now(), from:"You", time:nowStr(), text:`✓ Approved at the "${stepName}" stage by ${approverName}.`});
   o.approvalStep++;
   o.status = o.approvalStep >= steps.length ? "Approved" : "In Review";
   updateOrder(o);
   sendApprovalNotification(o, stepName, o.status === "Approved");
+  // DM the next required approver now that it's their turn
+  if (o.status !== "Approved") {
+    const nextApprover = getStepApprover(o);
+    if (nextApprover) sendNextApproverNotification(o, nextApprover, stepName);
+  }
   renderList();
   renderDetail(o);
+}
+
+function sendNextApproverNotification(order, approver, completedStepName) {
+  const vendor = order.summary.split(",")[0];
+  const trackerLink = `${TRACKER_URL}?request=${order.id}`;
+  const steps = getSteps(order.amount);
+  const nextStepName = steps[order.approvalStep] || "your step";
+
+  const payload = {
+    channel: approver.id,
+    text: `Your approval is needed for prepayment request ${order.id}`,
+    blocks: [
+      {
+        type: "header",
+        text: { type: "plain_text", text: "Action Required: Prepayment Approval", emoji: true }
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `Hi ${approver.name}, *${completedStepName}* has been approved and it is now your turn to review.\n\n*${nextStepName}* approval is needed for the following request:` }
+      },
+      {
+        type: "section",
+        fields: [
+          { type: "mrkdwn", text: `*Request ID:*\n${order.id}` },
+          { type: "mrkdwn", text: `*Vendor:*\n${vendor}` },
+          { type: "mrkdwn", text: `*Pre-Payment Amount:*\n${fmt(order.amount)}` },
+          { type: "mrkdwn", text: `*PO Number:*\n${order.po}` },
+          { type: "mrkdwn", text: `*Submitted By:*\n${order.submittedBy}` },
+        ]
+      },
+      { type: "divider" },
+      {
+        type: "actions",
+        elements: [{ type: "button", text: { type: "plain_text", text: "Review & Approve", emoji: true }, style: "primary", url: trackerLink }]
+      }
+    ]
+  };
+
+  fetch("/notify-dm", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }).catch(() => {});
 }
 
 function rejectOrder(id) {
@@ -973,6 +1030,20 @@ function getApproversForAmount(amount) {
   return amount >= THRESHOLD
     ? [APPROVERS.srDir, APPROVERS.cmo, APPROVERS.finance]
     : [APPROVERS.srDir];
+}
+
+// Returns the approver object required at the current approval step (1-indexed matches steps array)
+// steps[0]=Submitted, steps[1]=Sr.Dir, steps[2]=CMO (high only), steps[3]=Finance (high only), last=Complete
+function getStepApprover(order) {
+  const approvers = getApproversForAmount(order.amount);
+  // approvalStep 1 = first approver, 2 = second, etc.
+  return approvers[order.approvalStep - 1] || null;
+}
+
+// Returns the NEXT approver after the current step approves
+function getNextStepApprover(order) {
+  const approvers = getApproversForAmount(order.amount);
+  return approvers[order.approvalStep] || null; // after increment, approvalStep points to next
 }
 
 function sendSlackNotification(order) {
