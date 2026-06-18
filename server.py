@@ -5,6 +5,7 @@ import urllib.error
 import os
 
 SLACK_WEBHOOK  = os.environ.get("SLACK_WEBHOOK", "")
+SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN", "")
 SUPABASE_URL   = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY   = os.environ.get("SUPABASE_KEY", "")
 PORT           = int(os.environ.get("PORT", 3500))
@@ -82,6 +83,33 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 self._respond(200, {"ok": True})
             except Exception as e:
                 self._respond(502, {"ok": False, "error": str(e)})
+
+        elif self.path == "/notify-dm":
+            if not SLACK_BOT_TOKEN:
+                self._respond(503, {"ok": False, "error": "SLACK_BOT_TOKEN not configured"})
+                return
+            try:
+                payload = json.loads(body)
+                dm_body = json.dumps({
+                    "channel": payload.get("channel"),
+                    "text":    payload.get("text", ""),
+                    "blocks":  payload.get("blocks", []),
+                }).encode()
+                req = urllib.request.Request(
+                    "https://slack.com/api/chat.postMessage",
+                    data=dm_body,
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {SLACK_BOT_TOKEN}",
+                    },
+                    method="POST"
+                )
+                with urllib.request.urlopen(req, timeout=5) as res:
+                    result = json.loads(res.read())
+                self._respond(200, result)
+            except Exception as e:
+                self._respond(502, {"ok": False, "error": str(e)})
+
         else:
             self._respond(404, {"ok": False})
 

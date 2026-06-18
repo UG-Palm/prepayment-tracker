@@ -747,6 +747,7 @@ function approveStep(id) {
   o.approvalStep++;
   o.status = o.approvalStep >= steps.length ? "Approved" : "In Review";
   updateOrder(o);
+  sendApprovalNotification(o, stepName, o.status === "Approved");
   renderList();
   renderDetail(o);
 }
@@ -958,6 +959,16 @@ const APPROVERS = {
   finance: { name:"Joanne Zhong", id:"U08JWQL4T"   },  // Head of Finance
 };
 
+// Map display names to Slack user IDs for DM notifications — add team members here
+const SLACK_USERS = {
+  "Palmer Yee":   "U03029974AG",
+  "Jenny Xie":    "U02GF436S9X",
+  "Joanne Zhong": "U08JWQL4T",
+  "You":          "U03029974AG",
+};
+
+const PREPAYMENT_CHANNEL = "C0BBD9ZQF8T";  // #prepayment-approvals
+
 function getApproversForAmount(amount) {
   return amount >= THRESHOLD
     ? [APPROVERS.srDir, APPROVERS.cmo, APPROVERS.finance]
@@ -1053,6 +1064,91 @@ function sendSlackNotification(order) {
     else         showToast("Request saved — Slack error: " + data.error, "warn");
   })
   .catch(() => showToast("Request saved — could not reach Slack", "warn"));
+}
+
+// ── APPROVAL NOTIFICATION ─────────────────────────────────────────────────────
+function sendApprovalNotification(order, stepName, isFullyApproved) {
+  const vendor = order.summary.split(",")[0];
+  const trackerLink = `${TRACKER_URL}?request=${order.id}`;
+
+  const channelPayload = isFullyApproved ? {
+    text: `✅ Prepayment request fully approved: ${order.summary}`,
+    blocks: [
+      {
+        type: "header",
+        text: { type: "plain_text", text: "✅ Prepayment Request Approved", emoji: true }
+      },
+      {
+        type: "section",
+        fields: [
+          { type: "mrkdwn", text: `*Request ID:*\n${order.id}` },
+          { type: "mrkdwn", text: `*Vendor:*\n${vendor}` },
+          { type: "mrkdwn", text: `*Pre-Payment Amount:*\n${fmt(order.amount)}` },
+          { type: "mrkdwn", text: `*PO Number:*\n${order.po}` },
+          { type: "mrkdwn", text: `*Submitted By:*\n${order.submittedBy}` },
+          { type: "mrkdwn", text: `*Category:*\n${order.category}` },
+        ]
+      },
+      { type: "divider" },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `:white_check_mark: *All approval steps completed.* This request is fully approved and ready for payment processing.` }
+      },
+      {
+        type: "actions",
+        elements: [{ type: "button", text: { type: "plain_text", text: "🔗 View Request", emoji: true }, style: "primary", url: trackerLink }]
+      }
+    ]
+  } : {
+    text: `🔄 Step approved on prepayment request ${order.id}: ${stepName}`,
+    blocks: [
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `*🔄 Step Approved:* ${stepName}\n*Request:* ${order.id} — ${vendor} (${fmt(order.amount)})\n*Next step:* ${getSteps(order.amount)[order.approvalStep] || "Complete"}` }
+      },
+      {
+        type: "actions",
+        elements: [{ type: "button", text: { type: "plain_text", text: "View Request", emoji: true }, url: trackerLink }]
+      }
+    ]
+  };
+
+  // Post to #prepayment-approvals channel
+  fetch("/notify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(channelPayload),
+  }).catch(() => {});
+
+  // DM the submitter if we have their Slack ID
+  const submitterId = SLACK_USERS[order.submittedBy];
+  if (submitterId && isFullyApproved) {
+    const dmPayload = {
+      channel: submitterId,
+      text: `✅ Your prepayment request has been fully approved!`,
+      blocks: [
+        {
+          type: "header",
+          text: { type: "plain_text", text: "✅ Your Request Has Been Approved!", emoji: true }
+        },
+        {
+          type: "section",
+          text: { type: "mrkdwn", text: `Hi ${order.submittedBy} — your prepayment request *${order.id}* for *${vendor}* (${fmt(order.amount)}) has completed all approval steps and is ready for payment processing.` }
+        },
+        {
+          type: "actions",
+          elements: [{ type: "button", text: { type: "plain_text", text: "🔗 View Request", emoji: true }, style: "primary", url: trackerLink }]
+        }
+      ]
+    };
+    fetch("/notify-dm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(dmPayload),
+    }).catch(() => {});
+  }
+
+  showToast(isFullyApproved ? "✅ Approval notifications sent" : `🔄 Step approval notified`, "success");
 }
 
 // ── TOAST ─────────────────────────────────────────────────────────────────────
