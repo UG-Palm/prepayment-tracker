@@ -256,7 +256,11 @@
       <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>
       New Request
     </button>
-    <div class="avatar" id="headerAvatar" onclick="signOut()" style="cursor:pointer" title="Click to sign out">YP</div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span id="headerName" style="font-size:12px;color:rgba(255,255,255,0.8)"></span>
+      <div class="avatar" id="headerAvatar" style="cursor:pointer" title="Click to sign out" onclick="signOut()">YP</div>
+      <button onclick="signOut()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer">Sign out</button>
+    </div>
   </div>
 </header>
 
@@ -503,6 +507,8 @@ function applyIdentity() {
   el.textContent      = av.initials;
   el.style.background = av.color;
   el.title            = displayName + (isAccountant() ? " — Accountant" : "");
+  const nameEl = document.getElementById("headerName");
+  if (nameEl) nameEl.textContent = displayName;
 }
 
 function signOut() {
