@@ -259,7 +259,7 @@
     <div style="display:flex;align-items:center;gap:8px">
       <span id="headerName" style="font-size:12px;color:rgba(255,255,255,0.8)"></span>
       <div class="avatar" id="headerAvatar" style="cursor:pointer" title="Click to sign out" onclick="signOut()">YP</div>
-      <button onclick="signOut()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer">Sign out</button>
+      <a href="/?signout=1" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;text-decoration:none">Sign out</a>
     </div>
   </div>
 </header>
@@ -478,6 +478,20 @@ const AVATARS = {
 };
 
 // ── IDENTITY ──────────────────────────────────────────────────────────────────
+// Early constants — defined before APPROVERS so IIFEs and init code can use them
+const KNOWN_APPROVERS = [
+  { id: "U03029974AG", name: "Palmer Yee" },
+  { id: "U02GF436S9X", name: "Jenny Xie" },
+  { id: "U08JWQL4T",   name: "Joanne Zhong" },
+];
+
+// Handle sign-out link (?signout=1) before anything else
+if (new URLSearchParams(location.search).get("signout")) {
+  localStorage.removeItem("ppCurrentUser");
+  localStorage.removeItem("ppCurrentUserId");
+  history.replaceState({}, "", "/");
+}
+
 // Accountants are identified by their Slack user ID
 const ACCOUNTANT_IDS = [
   "U03029974AG", // Palmer Yee
@@ -493,7 +507,7 @@ function isAccountant() { return ACCOUNTANT_IDS.includes(currentUserId); }
 function applyIdentity() {
   if (!currentUser) return;
   // Also match by Slack ID in case display name differs
-  const knownByID = Object.values(APPROVERS).find(a => a.id === currentUserId);
+  const knownByID = KNOWN_APPROVERS.find(a => a.id === currentUserId);
   const displayName = knownByID ? knownByID.name : currentUser;
   if (knownByID && currentUser !== knownByID.name) {
     currentUser = knownByID.name;
@@ -534,7 +548,7 @@ function signOut() {
 
   if (slackId && slackName) {
     // Map Slack display name → full name if it matches a known approver
-    const knownUser = Object.values(APPROVERS).find(a => a.id === slackId);
+    const knownUser = KNOWN_APPROVERS.find(a => a.id === slackId);
     currentUser   = knownUser ? knownUser.name : slackName;
     currentUserId = slackId;
     localStorage.setItem("ppCurrentUser",   currentUser);
