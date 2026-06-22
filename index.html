@@ -162,10 +162,16 @@
   .msg-bubble { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; border-top-left-radius: 3px; padding: 10px 14px; font-size: 13px; line-height: 1.5; box-shadow: var(--shadow); }
   .msg.me .msg-bubble { background: var(--primary); color: #fff; border-color: var(--primary); border-top-right-radius: 3px; border-top-left-radius: 12px; }
   .msg-system { align-self: center; background: var(--bg); border: 1px solid var(--border); border-radius: 20px; padding: 4px 14px; font-size: 11px; color: var(--text-muted); }
-  .compose-area { padding: 14px 24px; border-top: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+  .compose-area { padding: 14px 24px; border-top: 1px solid var(--border); background: var(--surface); flex-shrink: 0; position: relative; }
   .compose-inner { display: flex; gap: 10px; align-items: flex-end; }
   .compose-input { flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font-size: 13px; resize: none; font-family: inherit; outline: none; line-height: 1.5; max-height: 100px; min-height: 38px; }
   .compose-input:focus { border-color: var(--primary); }
+  .mention-dropdown { position: absolute; bottom: calc(100% - 10px); left: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); min-width: 200px; display: none; z-index: 50; overflow: hidden; }
+  .mention-item { padding: 9px 14px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+  .mention-item:hover { background: var(--bg); }
+  .mention-item-avatar { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .mention-tag { background: #dbeafe; color: #1d4ed8; border-radius: 4px; padding: 1px 5px; font-weight: 600; font-size: 12px; }
+  .msg.me .mention-tag { background: rgba(255,255,255,0.25); color: #fff; }
 
   /* ── DOCUMENTS ── */
   .doc-list { display: flex; flex-direction: column; gap: 10px; }
@@ -788,8 +794,9 @@ function renderDetail(o) {
             ${o.messages.map(renderMsg).join("")}
           </div>
           <div class="compose-area">
+            <div class="mention-dropdown" id="mentionDropdown"></div>
             <div class="compose-inner">
-              <textarea class="compose-input" id="composeBox" rows="1" placeholder="Write a message…" onkeydown="handleCompose(event,'${o.id}')"></textarea>
+              <textarea class="compose-input" id="composeBox" rows="1" placeholder="Write a message… (type @ to mention someone)" onkeydown="handleCompose(event,'${o.id}')" oninput="handleComposeInput(event,'${o.id}')"></textarea>
               <button class="btn btn-primary" onclick="sendMsg('${o.id}')">Send</button>
             </div>
           </div>
@@ -845,7 +852,7 @@ function renderMsg(m) {
     <div class="msg-avatar" style="background:${a.color}">${a.initials}</div>
     <div class="msg-body">
       <div class="msg-meta">${m.from} · ${m.time}</div>
-      <div class="msg-bubble">${m.text}</div>
+      <div class="msg-bubble">${highlightMentions(m.text)}</div>
     </div>
   </div>`;
 }
@@ -1035,6 +1042,52 @@ function rejectOrder(id) {
 // ── CONVERSATION ──────────────────────────────────────────────────────────────
 function handleCompose(e, id) {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(id); }
+  if (e.key === "Escape") { document.getElementById("mentionDropdown").style.display = "none"; }
+}
+
+function handleComposeInput(e, id) {
+  const box = e.target;
+  const before = box.value.slice(0, box.selectionStart);
+  const match = before.match(/@([\w]*)$/);
+  const dropdown = document.getElementById("mentionDropdown");
+  if (!dropdown) return;
+  if (match) {
+    const q = match[1].toLowerCase();
+    const hits = KNOWN_APPROVERS.filter(u => u.name.toLowerCase().includes(q));
+    if (hits.length) {
+      dropdown.innerHTML = hits.map(u => {
+        const av = AVATARS[u.name] || {initials: u.name.split(" ").map(w=>w[0]).join("").toUpperCase(), color:"#6b7280"};
+        return `<div class="mention-item" onmousedown="insertMention('${u.name}','${id}')">
+          <div class="mention-item-avatar" style="background:${av.color}">${av.initials}</div>
+          ${u.name}
+        </div>`;
+      }).join("");
+      dropdown.style.display = "block";
+    } else {
+      dropdown.style.display = "none";
+    }
+  } else {
+    dropdown.style.display = "none";
+  }
+}
+
+function insertMention(name, id) {
+  const box = document.getElementById("composeBox");
+  if (!box) return;
+  const cursor = box.selectionStart;
+  const before = box.value.slice(0, cursor).replace(/@[\w]*$/, `@${name} `);
+  box.value = before + box.value.slice(cursor);
+  box.focus();
+  box.setSelectionRange(before.length, before.length);
+  document.getElementById("mentionDropdown").style.display = "none";
+}
+
+function highlightMentions(text) {
+  let out = text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  KNOWN_APPROVERS.forEach(u => {
+    out = out.replace(new RegExp(`@${u.name}`, "g"), `<span class="mention-tag">@${u.name}</span>`);
+  });
+  return out;
 }
 function sendMsg(id) {
   const box = document.getElementById("composeBox");
@@ -1069,19 +1122,46 @@ function sendMsg(id) {
   const senderId = SLACK_USERS[sender] || currentUserId;
   pingIds.delete(senderId);
 
+  // Find @mentioned users
+  const mentionedIds = new Set(
+    KNOWN_APPROVERS.filter(u => text.includes(`@${u.name}`) && u.id !== senderId).map(u => u.id)
+  );
+
   pingIds.forEach(uid => {
+    const wasMentioned = mentionedIds.has(uid);
+    const intro = wasMentioned
+      ? `🔔 *${sender}* mentioned you on *${o.id} — ${o.summary}*:`
+      : `💬 *${sender}* left a message on *${o.id} — ${o.summary}* (${fmt(o.amount)}):`;
     fetch("/notify-dm", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         channel: uid,
-        text: `New message on prepayment request ${o.id} from ${sender}`,
+        text: `${wasMentioned ? "You were mentioned" : "New message"} on prepayment request ${o.id} from ${sender}`,
         blocks: [
-          { type: "section", text: { type: "mrkdwn", text: `💬 *${sender}* left a message on *${o.id} — ${o.summary}* (${fmt(o.amount)}):\n\n_"${text}"_` } },
+          { type: "section", text: { type: "mrkdwn", text: `${intro}\n\n_"${text}"_` } },
           { type: "actions", elements: [{ type: "button", text: { type: "plain_text", text: "View Conversation", emoji: true }, url: trackerLink }] }
         ]
       }),
     }).catch(() => {});
+  });
+
+  // DM @mentioned users who aren't already in the ping list
+  mentionedIds.forEach(uid => {
+    if (!pingIds.has(uid)) {
+      fetch("/notify-dm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          channel: uid,
+          text: `You were mentioned on prepayment request ${o.id} from ${sender}`,
+          blocks: [
+            { type: "section", text: { type: "mrkdwn", text: `🔔 *${sender}* mentioned you on *${o.id} — ${o.summary}*:\n\n_"${text}"_` } },
+            { type: "actions", elements: [{ type: "button", text: { type: "plain_text", text: "View Conversation", emoji: true }, url: trackerLink }] }
+          ]
+        }),
+      }).catch(() => {});
+    }
   });
 }
 
