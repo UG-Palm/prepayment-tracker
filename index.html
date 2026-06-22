@@ -897,7 +897,12 @@ function approveStep(id) {
   const steps = getSteps(o.amount);
   const stepName = steps[o.approvalStep] || "Step";
   const approverWho = getStepApprover(o);
-  const approverName = approverWho ? approverWho.name : "You";
+  const isOverride = isAccountant() && approverWho && currentUserId !== approverWho.id;
+  if (isOverride) {
+    const confirmed = confirm(`⚠️ ${approverWho.name} has not approved the "${stepName}" step yet.\n\nAs an accountant you can override this, but it will be logged.\n\nWould you still like to approve this step?`);
+    if (!confirmed) return;
+  }
+  const approverName = isOverride ? `${currentUser} (override)` : (approverWho ? approverWho.name : "You");
   o.history.push({action:`${stepName} approved`, detail:`Approved by ${approverName}`, time:nowStr(), color:"green"});
   o.messages.push({id:Date.now(), from:approverName, time:nowStr(), text:`✓ Approved at the "${stepName}" stage.`});
   o.approvalStep++;
