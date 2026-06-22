@@ -777,11 +777,11 @@ function renderDetail(o) {
           <button class="btn btn-success" onclick="approveStep('${o.id}')">Approve This Step</button>
           ` : `
           <span style="font-size:12px;color:var(--text-muted)">Only ${requiredApprover.name} can approve this step</span>
+          ${isAccountant() ? `<button class="btn btn-ghost btn-sm" style="color:#d97706" onclick="skipApprover('${o.id}')">Skip Approver</button>` : ""}`}
           <button class="btn btn-ghost btn-sm" title="Send reminder to ${requiredApprover.name}" onclick="sendReminder('${o.id}')" style="gap:4px">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
             Remind
           </button>
-          ${isAccountant() ? `<button class="btn btn-ghost btn-sm" style="color:#d97706" onclick="skipApprover('${o.id}')">Skip Approver</button>` : ""}`}
         </div>`;
           }
           return `<div class="action-bar"><span>Processing approval…</span></div>`;
