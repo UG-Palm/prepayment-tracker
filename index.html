@@ -277,6 +277,7 @@
       <span class="filter-chip" onclick="setFilter('In Review',this)">In Review</span>
       <span class="filter-chip" onclick="setFilter('Approved',this)">Approved</span>
       <span class="filter-chip" onclick="setFilter('Rejected',this)">Rejected</span>
+      <span class="filter-chip" onclick="setFilter('archived',this)" style="color:#9ca3af">Archive</span>
     </div>
     <div class="order-list" id="orderList"></div>
   </aside>
@@ -591,6 +592,8 @@ function renderList() {
   const list = document.getElementById("orderList");
   list.innerHTML = "";
   const filtered = orders.filter(o => {
+    if (activeFilter === "archived") return !!o.archived;
+    if (o.archived) return false;
     if (activeFilter !== "all" && o.status !== activeFilter) return false;
     if (q && !o.summary.toLowerCase().includes(q) && !o.id.toLowerCase().includes(q) && !o.po.toLowerCase().includes(q)) return false;
     return true;
@@ -982,17 +985,16 @@ function requestDeletion(id) {
 function deleteOrder(id) {
   const o = orders.find(x => x.id === id);
   if (!o) return;
-  if (!confirm(`Delete request ${o.id} — "${o.summary}"?\n\nThis cannot be undone.`)) return;
-  orders = orders.filter(x => x.id !== id);
-  fetch("/api/orders/delete", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id }),
-  }).catch(() => {});
+  if (!confirm(`Archive request ${o.id} — "${o.summary}"?\n\nIt will be moved to the Archive and can be referenced later.`)) return;
+  o.archived   = true;
+  o.archivedBy = currentUser || "You";
+  o.archivedAt = nowStr();
+  o.history.push({action:"Request archived", detail:`Archived by ${o.archivedBy}`, time:nowStr(), color:"grey"});
+  updateOrder(o);
   document.getElementById("orderDetail").style.display = "none";
   document.getElementById("emptyState").style.display = "flex";
   renderList();
-  showToast("Request deleted", "warn");
+  showToast("Request moved to Archive", "warn");
 }
 
 function rejectOrder(id) {
