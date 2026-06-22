@@ -775,7 +775,12 @@ function renderDetail(o) {
           ${isMyTurn ? `
           <button class="btn btn-danger" onclick="rejectOrder('${o.id}')">Reject</button>
           <button class="btn btn-success" onclick="approveStep('${o.id}')">Approve This Step</button>
-          ` : `<span style="font-size:12px;color:var(--text-muted)">Only ${requiredApprover.name} can approve this step</span>`}
+          ` : `
+          <span style="font-size:12px;color:var(--text-muted)">Only ${requiredApprover.name} can approve this step</span>
+          ${isAccountant() ? `<button class="btn btn-ghost btn-sm" title="Send reminder to ${requiredApprover.name}" onclick="sendReminder('${o.id}')" style="gap:4px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            Remind
+          </button>` : ""}`}
         </div>`;
           }
           return `<div class="action-bar"><span>Processing approval…</span></div>`;
@@ -954,6 +959,49 @@ function sendNextApproverNotification(order, approver, completedStepName) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   }).catch(() => {});
+}
+
+function sendReminder(id) {
+  const o = orders.find(x => x.id === id);
+  if (!o) return;
+  const approver = getStepApprover(o);
+  if (!approver) return;
+  const steps = getSteps(o.amount);
+  const stepName = steps[o.approvalStep] || "your step";
+  const vendor = o.summary.split(",")[0];
+  const trackerLink = `${TRACKER_URL}?request=${o.id}`;
+  const sender = currentUser || "An accountant";
+
+  fetch("/notify-dm", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      channel: approver.id,
+      text: `Reminder: your approval is needed on prepayment request ${o.id}`,
+      blocks: [
+        { type: "header", text: { type: "plain_text", text: "🔔 Approval Reminder", emoji: true } },
+        { type: "section", text: { type: "mrkdwn", text: `Hi ${approver.name}, just a friendly reminder that *${stepName}* approval is still pending for the following request.` } },
+        {
+          type: "section",
+          fields: [
+            { type: "mrkdwn", text: `*Request ID:*\n${o.id}` },
+            { type: "mrkdwn", text: `*Vendor:*\n${vendor}` },
+            { type: "mrkdwn", text: `*Amount:*\n${fmt(o.amount)}` },
+            { type: "mrkdwn", text: `*PO Number:*\n${o.po}` },
+            { type: "mrkdwn", text: `*Submitted By:*\n${o.submittedBy}` },
+          ]
+        },
+        { type: "divider" },
+        { type: "actions", elements: [{ type: "button", text: { type: "plain_text", text: "Review & Approve", emoji: true }, style: "primary", url: trackerLink }] }
+      ]
+    }),
+  }).then(() => {
+    botMsg(o, `🔔 Reminder sent to ${approver.name} by ${sender}.`);
+    o.history.push({ action: "Reminder sent", detail: `${sender} sent a reminder to ${approver.name}`, time: nowStr(), color: "grey" });
+    updateOrder(o);
+    renderDetail(o);
+    showToast(`Reminder sent to ${approver.name}`, "success");
+  }).catch(() => showToast("Could not send reminder", "warn"));
 }
 
 function requestDeletion(id) {
