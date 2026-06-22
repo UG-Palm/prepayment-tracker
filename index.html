@@ -1575,8 +1575,8 @@ function sendApprovalNotification(order, stepName, isFullyApproved) {
       }).catch(() => {});
     }
 
-    // DM Palmer Yee and Jenny Xie — they process the actual payment
-    const paymentProcessors = [APPROVERS.srDir, APPROVERS.cmo]; // Palmer Yee, Jenny Xie
+    // DM all accountants — they process the actual payment
+    const paymentProcessors = [APPROVERS.srDir, APPROVERS.cmo, APPROVERS.finance]; // Palmer, Jenny, Joanne
     paymentProcessors.forEach(person => {
       fetch("/notify-dm", {
         method: "POST",
