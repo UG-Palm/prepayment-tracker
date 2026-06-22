@@ -769,19 +769,19 @@ function renderDetail(o) {
           const stepLabel = steps[o.approvalStep] || "Complete";
           if (requiredApprover) {
             const isMyTurn = currentUserId === requiredApprover.id;
-            const canApprove = isMyTurn || isAccountant();
             return `
         <div class="action-bar">
-          <span>${isMyTurn ? `It's your turn to approve <em>${stepLabel}</em>` : `Waiting on: <strong>${requiredApprover.name}</strong> to approve <em>${stepLabel}</em>`}${!isMyTurn && isAccountant() ? ` <span style="font-size:11px;color:var(--text-muted)">(accountant override)</span>` : ""}</span>
-          ${canApprove ? `
+          <span>${isMyTurn ? `It's your turn to approve <em>${stepLabel}</em>` : `Waiting on: <strong>${requiredApprover.name}</strong> to approve <em>${stepLabel}</em>`}</span>
+          ${isMyTurn ? `
           <button class="btn btn-danger" onclick="rejectOrder('${o.id}')">Reject</button>
           <button class="btn btn-success" onclick="approveStep('${o.id}')">Approve This Step</button>
           ` : `
-          <span style="font-size:12px;color:var(--text-muted)">Only ${requiredApprover.name} can approve this step</span>`}
-          ${!isMyTurn ? `<button class="btn btn-ghost btn-sm" title="Send reminder to ${requiredApprover.name}" onclick="sendReminder('${o.id}')" style="gap:4px">
+          <span style="font-size:12px;color:var(--text-muted)">Only ${requiredApprover.name} can approve this step</span>
+          <button class="btn btn-ghost btn-sm" title="Send reminder to ${requiredApprover.name}" onclick="sendReminder('${o.id}')" style="gap:4px">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
             Remind
-          </button>` : ""}
+          </button>
+          ${isAccountant() ? `<button class="btn btn-ghost btn-sm" style="color:#d97706" onclick="skipApprover('${o.id}')">Skip Approver</button>` : ""}`}
         </div>`;
           }
           return `<div class="action-bar"><span>Processing approval…</span></div>`;
@@ -891,18 +891,44 @@ function botMsg(o, text) {
   o.messages.push({id:Date.now(), from:"Bot", time:nowStr(), text});
 }
 
+function skipApprover(id) {
+  const o = orders.find(x => x.id === id);
+  if (!o) return;
+  const steps = getSteps(o.amount);
+  const stepName = steps[o.approvalStep] || "Step";
+  const approverWho = getStepApprover(o);
+  if (!approverWho) return;
+  const confirmed = confirm(`Skip the "${stepName}" approval step?\n\n${approverWho.name} has not approved this step. It will be marked as skipped and logged.\n\nContinue?`);
+  if (!confirmed) return;
+  const skippedBy = currentUser || "An accountant";
+  o.history.push({ action: `${stepName} skipped`, detail: `${approverWho.name}'s step skipped by ${skippedBy}`, time: nowStr(), color: "grey" });
+  botMsg(o, `⏭️ ${approverWho.name}'s "${stepName}" step was skipped by ${skippedBy}.`);
+  o.approvalStep++;
+  o.status = o.approvalStep >= steps.length - 1 ? "Approved" : "In Review";
+  if (o.status === "Approved") {
+    botMsg(o, `🎉 This PO has been fully approved. Payment can now be processed.`);
+  } else {
+    const next = getStepApprover(o);
+    if (next) botMsg(o, `⏳ Waiting for approval from ${next.name}.`);
+  }
+  updateOrder(o);
+  sendApprovalNotification(o, stepName, o.status === "Approved");
+  if (o.status !== "Approved") {
+    const next = getStepApprover(o);
+    if (next) sendNextApproverNotification(o, next, stepName);
+  }
+  renderList();
+  renderDetail(o);
+  showToast(`${approverWho.name}'s step skipped`, "warn");
+}
+
 function approveStep(id) {
   const o = orders.find(x => x.id === id);
   if (!o) return;
   const steps = getSteps(o.amount);
   const stepName = steps[o.approvalStep] || "Step";
   const approverWho = getStepApprover(o);
-  const isOverride = isAccountant() && approverWho && currentUserId !== approverWho.id;
-  if (isOverride) {
-    const confirmed = confirm(`⚠️ ${approverWho.name} has not approved the "${stepName}" step yet.\n\nAs an accountant you can override this, but it will be logged.\n\nWould you still like to approve this step?`);
-    if (!confirmed) return;
-  }
-  const approverName = isOverride ? `${currentUser} (override)` : (approverWho ? approverWho.name : "You");
+  const approverName = approverWho ? approverWho.name : "You";
   o.history.push({action:`${stepName} approved`, detail:`Approved by ${approverName}`, time:nowStr(), color:"green"});
   o.messages.push({id:Date.now(), from:approverName, time:nowStr(), text:`✓ Approved at the "${stepName}" stage.`});
   o.approvalStep++;
