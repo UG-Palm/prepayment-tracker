@@ -203,6 +203,8 @@
   .dash-filter-btn { padding: 4px 12px; border-radius: 20px; border: 1px solid var(--border); font-size: 12px; cursor: pointer; background: var(--surface); color: var(--text-secondary); transition: all .15s; white-space: nowrap; }
   .dash-filter-btn:hover { border-color: var(--primary); color: var(--primary); }
   .dash-filter-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
+  .dash-select { font-size: 12px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); outline: none; cursor: pointer; }
+  .dash-select:focus { border-color: var(--primary); }
 
   /* ── DOCUMENTS ── */
   .doc-list { display: flex; flex-direction: column; gap: 10px; }
@@ -921,6 +923,10 @@ function showTab(name) {
 let dashFilter = "all";
 let dashCustomStart = "";
 let dashCustomEnd   = "";
+let dashStatusFilter    = "all";
+let dashSubmitterFilter = "all";
+let dashVendorFilter    = "all";
+let dashCategoryFilter  = "all";
 
 function showDashboard() {
   document.getElementById("emptyState").style.display = "none";
@@ -972,13 +978,33 @@ function getDateRange() {
   }
 }
 
-function filterOrdersByDate(list) {
+function clearDashDropFilters() {
+  dashStatusFilter = dashSubmitterFilter = dashVendorFilter = dashCategoryFilter = "all";
+  document.getElementById("dashboardPanel").innerHTML = buildDashboard();
+}
+
+function setDashDropFilter(key, val) {
+  if (key === "status")    dashStatusFilter    = val;
+  if (key === "submitter") dashSubmitterFilter = val;
+  if (key === "vendor")    dashVendorFilter    = val;
+  if (key === "category")  dashCategoryFilter  = val;
+  document.getElementById("dashboardPanel").innerHTML = buildDashboard();
+}
+
+function filterOrders_dash(list) {
   const range = getDateRange();
-  if (!range) return list;
   return list.filter(o => {
-    if (!o.submittedDate) return false;
-    const d = new Date(o.submittedDate);
-    return d >= range.start && d <= new Date(range.end.getTime() + 864e5 - 1);
+    if (range) {
+      if (!o.submittedDate) return false;
+      const d = new Date(o.submittedDate);
+      if (d < range.start || d > new Date(range.end.getTime() + 864e5 - 1)) return false;
+    }
+    if (dashStatusFilter    !== "all" && o.status !== dashStatusFilter) return false;
+    if (dashSubmitterFilter !== "all" && o.submittedBy !== dashSubmitterFilter) return false;
+    const vendor = o.summary?.split(",")[0] || "";
+    if (dashVendorFilter    !== "all" && vendor !== dashVendorFilter) return false;
+    if (dashCategoryFilter  !== "all" && (o.category || "") !== dashCategoryFilter) return false;
+    return true;
   });
 }
 
@@ -996,9 +1022,19 @@ const DASH_FILTERS = [
 
 function buildDashboard() {
   const allActive = orders.filter(o => !o.archived);
-  const active = filterOrdersByDate(allActive);
-  const statuses = ["Pending", "In Review", "Approved", "Rejected"];
+  const active = filterOrders_dash(allActive);
 
+  // Build dropdown options from full dataset
+  const statuses   = ["Pending", "In Review", "Approved", "Rejected"];
+  const submitters = [...new Set(allActive.map(o => o.submittedBy).filter(Boolean))].sort();
+  const vendors    = [...new Set(allActive.map(o => o.summary?.split(",")[0]).filter(Boolean))].sort();
+  const categories = [...new Set(allActive.map(o => o.category).filter(Boolean))].sort();
+
+  const mkSelect = (key, val, opts) => `
+    <select class="dash-select" onchange="setDashDropFilter('${key}',this.value)">
+      <option value="all">${{status:"All Statuses",submitter:"All Submitters",vendor:"All Vendors",category:"All Categories"}[key]}</option>
+      ${opts.map(o => `<option value="${o}"${val===o?" selected":""}>${o}</option>`).join("")}
+    </select>`;
   // Summary totals
   const totalAmt = active.reduce((s, o) => s + (o.amount || 0), 0);
   const approvedAmt = active.filter(o => o.status === "Approved").reduce((s, o) => s + (o.amount || 0), 0);
@@ -1006,9 +1042,10 @@ function buildDashboard() {
   const rejectedAmt = active.filter(o => o.status === "Rejected").reduce((s, o) => s + (o.amount || 0), 0);
 
   // By status counts
+  const ALL_STATUSES = ["Pending", "In Review", "Approved", "Rejected"];
   const countByStatus = {};
   const amtByStatus = {};
-  statuses.forEach(s => {
+  ALL_STATUSES.forEach(s => {
     const group = active.filter(o => o.status === s);
     countByStatus[s] = group.length;
     amtByStatus[s] = group.reduce((sum, o) => sum + (o.amount || 0), 0);
@@ -1079,6 +1116,17 @@ function buildDashboard() {
           <button class="btn btn-primary btn-sm" onclick="applyCustomRange()" style="padding:4px 12px;font-size:12px">Apply</button>
         </div>
       ` : `<span style="font-size:12px;color:var(--text-muted);margin-left:4px">${rangeLabel}</span>`}
+    </div>
+
+    <!-- Dropdown filters -->
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+      ${mkSelect("status",    dashStatusFilter,    statuses)}
+      ${mkSelect("submitter", dashSubmitterFilter, submitters)}
+      ${mkSelect("vendor",    dashVendorFilter,    vendors)}
+      ${mkSelect("category",  dashCategoryFilter,  categories)}
+      ${(dashStatusFilter!=="all"||dashSubmitterFilter!=="all"||dashVendorFilter!=="all"||dashCategoryFilter!=="all")
+        ? `<button class="btn btn-ghost btn-sm" style="font-size:12px;color:#dc2626" onclick="clearDashDropFilters()">✕ Clear filters</button>`
+        : ""}
     </div>
 
     <!-- Summary cards -->
