@@ -190,8 +190,30 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return
             try:
                 payload = json.loads(body)
+                user_id = payload.get("channel")
+
+                # Open a DM channel with the user first
+                open_body = json.dumps({"users": user_id}).encode()
+                open_req = urllib.request.Request(
+                    "https://slack.com/api/conversations.open",
+                    data=open_body,
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {SLACK_BOT_TOKEN}",
+                    },
+                    method="POST"
+                )
+                with urllib.request.urlopen(open_req, timeout=5) as open_res:
+                    open_result = json.loads(open_res.read())
+
+                if not open_result.get("ok"):
+                    self._respond(502, {"ok": False, "error": "conversations.open failed: " + open_result.get("error", "unknown")})
+                    return
+
+                dm_channel = open_result["channel"]["id"]
+
                 dm_body = json.dumps({
-                    "channel": payload.get("channel"),
+                    "channel": dm_channel,
                     "text":    payload.get("text", ""),
                     "blocks":  payload.get("blocks", []),
                 }).encode()
