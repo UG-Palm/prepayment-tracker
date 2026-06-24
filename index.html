@@ -983,9 +983,15 @@ function buildDashboard() {
 
   return `
     <button class="dash-back" onclick="hideDashboard()">← Back to requests</button>
-    <div>
-      <div class="dash-title">Prepayment Dashboard</div>
-      <div class="dash-subtitle">Accountants view · ${active.length} active requests · ${orders.filter(o=>o.archived).length} archived</div>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+      <div>
+        <div class="dash-title">Prepayment Dashboard</div>
+        <div class="dash-subtitle">Accountants view · ${active.length} active requests · ${orders.filter(o=>o.archived).length} archived</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="downloadCSV()" style="gap:6px;flex-shrink:0;margin-top:4px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download CSV
+      </button>
     </div>
 
     <!-- Summary cards -->
@@ -1074,6 +1080,36 @@ function buildDashboard() {
       </div>
     </div>
   `;
+}
+
+function downloadCSV() {
+  const active = orders.filter(o => !o.archived);
+  const rows = [
+    ["Request ID", "PO Number", "Vendor", "Category", "Amount", "Status", "Submitted By", "Submitted Date", "Approval Route"],
+    ...active.map(o => [
+      o.id,
+      o.po,
+      o.summary?.split(",")[0] || "",
+      o.category || "",
+      o.amount || 0,
+      o.status,
+      o.submittedBy || "",
+      o.submittedDate || "",
+      o.amount >= THRESHOLD ? "3-level approval" : "1-level approval",
+    ])
+  ];
+
+  const csv = rows.map(r =>
+    r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")
+  ).join("\n");
+
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `prepayment-requests-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ── FILTER ────────────────────────────────────────────────────────────────────
