@@ -200,6 +200,9 @@
   .dash-bar-track { flex: 1; height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
   .dash-bar-fill { height: 100%; border-radius: 4px; background: var(--primary); transition: width .4s; }
   .dash-bar-amt { font-size: 12px; color: var(--text-muted); width: 90px; text-align: right; flex-shrink: 0; }
+  .dash-filter-btn { padding: 4px 12px; border-radius: 20px; border: 1px solid var(--border); font-size: 12px; cursor: pointer; background: var(--surface); color: var(--text-secondary); transition: all .15s; white-space: nowrap; }
+  .dash-filter-btn:hover { border-color: var(--primary); color: var(--primary); }
+  .dash-filter-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
 
   /* ── DOCUMENTS ── */
   .doc-list { display: flex; flex-direction: column; gap: 10px; }
@@ -915,6 +918,10 @@ function showTab(name) {
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
+let dashFilter = "all";
+let dashCustomStart = "";
+let dashCustomEnd   = "";
+
 function showDashboard() {
   document.getElementById("emptyState").style.display = "none";
   document.getElementById("orderDetail").style.display = "none";
@@ -928,8 +935,68 @@ function hideDashboard() {
   document.getElementById("emptyState").style.display = "flex";
 }
 
+function setDashFilter(f) {
+  dashFilter = f;
+  if (f !== "custom") { dashCustomStart = ""; dashCustomEnd = ""; }
+  document.getElementById("dashboardPanel").innerHTML = buildDashboard();
+  if (f === "custom") {
+    // focus the start input after render
+    setTimeout(() => document.getElementById("dashCustomStart")?.focus(), 50);
+  }
+}
+
+function applyCustomRange() {
+  dashCustomStart = document.getElementById("dashCustomStart")?.value || "";
+  dashCustomEnd   = document.getElementById("dashCustomEnd")?.value || "";
+  document.getElementById("dashboardPanel").innerHTML = buildDashboard();
+}
+
+function getDateRange() {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  switch (dashFilter) {
+    case "week":    return { start: new Date(today - 6*864e5), end: today };
+    case "month":   return { start: new Date(today.getFullYear(), today.getMonth() - 1, today.getDate()), end: today };
+    case "quarter": return { start: new Date(today.getFullYear(), today.getMonth() - 3, today.getDate()), end: today };
+    case "year":    return { start: new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()), end: today };
+    case "mtd":     return { start: new Date(today.getFullYear(), today.getMonth(), 1), end: today };
+    case "qtd": {
+      const qStart = new Date(today.getFullYear(), Math.floor(today.getMonth()/3)*3, 1);
+      return { start: qStart, end: today };
+    }
+    case "ytd":     return { start: new Date(today.getFullYear(), 0, 1), end: today };
+    case "custom":
+      if (!dashCustomStart || !dashCustomEnd) return null;
+      return { start: new Date(dashCustomStart), end: new Date(dashCustomEnd) };
+    default: return null; // "all"
+  }
+}
+
+function filterOrdersByDate(list) {
+  const range = getDateRange();
+  if (!range) return list;
+  return list.filter(o => {
+    if (!o.submittedDate) return false;
+    const d = new Date(o.submittedDate);
+    return d >= range.start && d <= new Date(range.end.getTime() + 864e5 - 1);
+  });
+}
+
+const DASH_FILTERS = [
+  { key:"all",     label:"All Time" },
+  { key:"week",    label:"Weekly" },
+  { key:"month",   label:"Monthly" },
+  { key:"quarter", label:"Quarterly" },
+  { key:"year",    label:"Yearly" },
+  { key:"mtd",     label:"MTD" },
+  { key:"qtd",     label:"QTD" },
+  { key:"ytd",     label:"YTD" },
+  { key:"custom",  label:"Custom" },
+];
+
 function buildDashboard() {
-  const active = orders.filter(o => !o.archived);
+  const allActive = orders.filter(o => !o.archived);
+  const active = filterOrdersByDate(allActive);
   const statuses = ["Pending", "In Review", "Approved", "Rejected"];
 
   // Summary totals
@@ -981,17 +1048,37 @@ function buildDashboard() {
 
   const accentMap = { "Pending": "accent-yellow", "In Review": "accent-blue", "Approved": "accent-green", "Rejected": "accent-red" };
 
+  const range = getDateRange();
+  const rangeLabel = range
+    ? `${range.start.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})} – ${range.end.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`
+    : "All time";
+
   return `
     <button class="dash-back" onclick="hideDashboard()">← Back to requests</button>
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
       <div>
         <div class="dash-title">Prepayment Dashboard</div>
-        <div class="dash-subtitle">Accountants view · ${active.length} active requests · ${orders.filter(o=>o.archived).length} archived</div>
+        <div class="dash-subtitle">Accountants view · ${active.length} requests in range · ${allActive.length} total active · ${orders.filter(o=>o.archived).length} archived</div>
       </div>
       <button class="btn btn-ghost btn-sm" onclick="downloadCSV()" style="gap:6px;flex-shrink:0;margin-top:4px">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Download CSV
       </button>
+    </div>
+
+    <!-- Date filters -->
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+      ${DASH_FILTERS.map(f => `
+        <button class="dash-filter-btn${dashFilter===f.key?' active':''}" onclick="setDashFilter('${f.key}')">${f.label}</button>
+      `).join("")}
+      ${dashFilter === "custom" ? `
+        <div style="display:flex;align-items:center;gap:6px;margin-left:4px">
+          <input type="date" id="dashCustomStart" value="${dashCustomStart}" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;outline:none;color:var(--text);background:var(--surface)">
+          <span style="font-size:12px;color:var(--text-muted)">to</span>
+          <input type="date" id="dashCustomEnd" value="${dashCustomEnd}" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;outline:none;color:var(--text);background:var(--surface)">
+          <button class="btn btn-primary btn-sm" onclick="applyCustomRange()" style="padding:4px 12px;font-size:12px">Apply</button>
+        </div>
+      ` : `<span style="font-size:12px;color:var(--text-muted);margin-left:4px">${rangeLabel}</span>`}
     </div>
 
     <!-- Summary cards -->
