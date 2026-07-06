@@ -316,7 +316,7 @@
       <span class="filter-chip" onclick="setFilter('In Review',this)">In Review</span>
       <span class="filter-chip" onclick="setFilter('Approved',this)">Approved</span>
       <span class="filter-chip" onclick="setFilter('Rejected',this)">Rejected</span>
-      <span class="filter-chip" onclick="setFilter('archived',this)" style="color:#9ca3af">Archive</span>
+      <span class="filter-chip" id="archiveChip" onclick="setFilter('archived',this)" style="color:#9ca3af;display:none">Archive</span>
     </div>
     <div class="order-list" id="orderList"></div>
     <div id="dashboardSidebarBtn" style="display:none;padding:12px 16px;border-top:1px solid var(--border);margin-top:auto;flex-shrink:0">
@@ -579,6 +579,8 @@ function applyIdentity() {
   if (nameEl) nameEl.textContent = displayName;
   const dashBtn = document.getElementById("dashboardSidebarBtn");
   if (dashBtn) dashBtn.style.display = isAccountant() ? "block" : "none";
+  const archiveChip = document.getElementById("archiveChip");
+  if (archiveChip) archiveChip.style.display = isAccountant() ? "inline-block" : "none";
 }
 
 function signOut() {
@@ -726,11 +728,18 @@ function renderDetail(o) {
       </div>
       <div class="order-header-right">
         <span class="badge ${statusBadgeClass(o.status)}">${o.status}</span>
-        <button class="btn btn-ghost btn-sm" onclick="openEditModal('${o.id}')">Edit</button>
-        ${isAccountant()
-          ? `<button class="btn btn-ghost btn-sm" style="color:#dc2626" onclick="deleteOrder('${o.id}')">Delete</button>`
-          : `<button class="btn btn-ghost btn-sm" style="color:#d97706" onclick="requestDeletion('${o.id}')">Request Deletion</button>`
-        }
+        ${o.archived ? `
+          ${isAccountant() ? `
+            <span style="font-size:12px;color:var(--text-muted)">Archived by ${o.archivedBy} · ${o.archivedAt}</span>
+            <button class="btn btn-ghost btn-sm" style="color:#dc2626" onclick="permanentDeleteOrder('${o.id}')">Permanently Delete</button>
+          ` : ""}
+        ` : `
+          <button class="btn btn-ghost btn-sm" onclick="openEditModal('${o.id}')">Edit</button>
+          ${isAccountant()
+            ? `<button class="btn btn-ghost btn-sm" style="color:#dc2626" onclick="deleteOrder('${o.id}')">Delete</button>`
+            : `<button class="btn btn-ghost btn-sm" style="color:#d97706" onclick="requestDeletion('${o.id}')">Request Deletion</button>`
+          }
+        `}
       </div>
     </div>
 
@@ -1437,6 +1446,22 @@ function requestDeletion(id) {
   }).catch(() => {});
 
   showToast("Deletion request sent to accountants", "warn");
+}
+
+function permanentDeleteOrder(id) {
+  const o = orders.find(x => x.id === id);
+  if (!o) return;
+  if (!confirm(`Permanently delete ${o.id} — "${o.summary}"?\n\nThis cannot be undone.`)) return;
+  orders = orders.filter(x => x.id !== id);
+  fetch("/api/orders/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  }).catch(() => {});
+  document.getElementById("orderDetail").style.display = "none";
+  document.getElementById("emptyState").style.display = "flex";
+  renderList();
+  showToast("Request permanently deleted", "warn");
 }
 
 function deleteOrder(id) {
