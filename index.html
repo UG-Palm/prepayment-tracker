@@ -1106,10 +1106,16 @@ function buildDashboard() {
         <div class="dash-title">Prepayment Dashboard</div>
         <div class="dash-subtitle">Accountants view · ${active.length} requests in range · ${allActive.length} total active · ${orders.filter(o=>o.archived).length} archived</div>
       </div>
-      <button class="btn btn-ghost btn-sm" onclick="downloadCSV()" style="gap:6px;flex-shrink:0;margin-top:4px">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Download CSV
-      </button>
+      <div style="display:flex;gap:8px;flex-shrink:0;margin-top:4px">
+        <button class="btn btn-ghost btn-sm" onclick="downloadCSV()" style="gap:6px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download CSV
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="downloadBackup()" style="gap:6px" title="Full backup of all orders including archived — save to SharePoint or OneDrive">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Backup All Data
+        </button>
+      </div>
     </div>
 
     <!-- Date filters -->
@@ -1224,6 +1230,25 @@ function buildDashboard() {
       </div>
     </div>
   `;
+}
+
+function downloadBackup() {
+  const backup = {
+    exportedAt: new Date().toISOString(),
+    exportedBy: currentUser || "Unknown",
+    totalOrders: orders.length,
+    activeOrders: orders.filter(o => !o.archived).length,
+    archivedOrders: orders.filter(o => o.archived).length,
+    orders: orders,
+  };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `prepayment-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast("Full backup downloaded — save to SharePoint or OneDrive", "success");
 }
 
 function downloadCSV() {
