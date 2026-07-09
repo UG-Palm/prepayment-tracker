@@ -76,6 +76,15 @@
   .sidebar-header { padding: 14px 16px; border-bottom: 1px solid var(--border); }
   .sidebar-search { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; color: var(--text); background: var(--bg); outline: none; }
   .sidebar-search:focus { border-color: var(--primary); }
+  .search-suggestion { padding: 8px 12px; font-size: 12px; cursor: pointer; display: flex; flex-direction: column; gap: 1px; border-bottom: 1px solid var(--border); }
+  .search-suggestion:last-child { border-bottom: none; }
+  .search-suggestion:hover, .search-suggestion.active { background: var(--primary-light); }
+  .search-suggestion-main { font-weight: 600; color: var(--text); }
+  .search-suggestion-sub { color: var(--text-muted); font-size: 11px; }
+  .search-suggestion-tag { display:inline-block; font-size:10px; padding:1px 6px; border-radius:10px; font-weight:600; margin-right:4px; }
+  .tag-vendor  { background:#e0f2fe; color:#0369a1; }
+  .tag-po      { background:#fef9c3; color:#854d0e; }
+  .tag-request { background:#f3e8ff; color:#6d28d9; }
   .sidebar-filters { display: flex; gap: 4px; padding: 10px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
   .filter-chip { padding: 3px 10px; border-radius: 20px; border: 1px solid var(--border); font-size: 12px; cursor: pointer; background: var(--surface); color: var(--text-secondary); transition: all .15s; white-space: nowrap; }
   .filter-chip.active { background: var(--primary); color: #fff; border-color: var(--primary); }
@@ -334,8 +343,9 @@
 
   <!-- SIDEBAR -->
   <aside class="sidebar">
-    <div class="sidebar-header">
-      <input class="sidebar-search" type="text" placeholder="Search orders…" id="searchInput" oninput="filterOrders()">
+    <div class="sidebar-header" style="position:relative">
+      <input class="sidebar-search" type="text" placeholder="Search by vendor, PO, or request #…" id="searchInput" oninput="onSearchInput()" onkeydown="onSearchKey(event)" autocomplete="off">
+      <div id="searchSuggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius);box-shadow:var(--shadow-md);z-index:100;max-height:240px;overflow-y:auto"></div>
     </div>
     <div class="sidebar-filters">
       <span class="filter-chip active" onclick="setFilter('all',this)">All</span>
@@ -1343,6 +1353,111 @@ function setFilter(f, el) {
   renderList();
 }
 function filterOrders() { renderList(); }
+
+let suggestionIndex = -1;
+
+function onSearchInput() {
+  renderList();
+  const q = document.getElementById("searchInput").value.trim().toLowerCase();
+  const box = document.getElementById("searchSuggestions");
+  suggestionIndex = -1;
+  if (!q || q.length < 1) { box.style.display = "none"; return; }
+
+  const pool = orders.filter(o => !o.archived);
+  const results = [];
+  const seen = new Set();
+
+  pool.forEach(o => {
+    const vendor = o.summary?.split(",")[0] || "";
+    const vendorL = vendor.toLowerCase();
+    const poL = o.po?.toLowerCase() || "";
+    const idL = o.id?.toLowerCase() || "";
+
+    if (vendorL.includes(q) && !seen.has("v_"+vendor)) {
+      seen.add("v_"+vendor);
+      results.push({ type:"vendor", main: vendor, sub: `${pool.filter(x=>x.summary?.startsWith(vendor)).length} request(s)`, id: null, vendor });
+    }
+    if (poL.includes(q) && !seen.has("po_"+o.po)) {
+      seen.add("po_"+o.po);
+      results.push({ type:"po", main: o.po, sub: `${vendor} · ${o.status}`, id: o.id });
+    }
+    if (idL.includes(q) && !seen.has("id_"+o.id)) {
+      seen.add("id_"+o.id);
+      results.push({ type:"request", main: o.id, sub: `${vendor} · ${fmt(o.amount)} · ${o.status}`, id: o.id });
+    }
+  });
+
+  if (!results.length) { box.style.display = "none"; return; }
+
+  const tagClass = { vendor:"tag-vendor", po:"tag-po", request:"tag-request" };
+  const tagLabel = { vendor:"Vendor", po:"PO", request:"Request" };
+
+  box.innerHTML = results.slice(0, 8).map((r, i) => `
+    <div class="search-suggestion" data-index="${i}" data-id="${r.id || ""}" data-vendor="${r.vendor || ""}" data-type="${r.type}"
+      onmousedown="pickSuggestion(this)" onmouseover="highlightSuggestion(${i})">
+      <div class="search-suggestion-main">
+        <span class="search-suggestion-tag ${tagClass[r.type]}">${tagLabel[r.type]}</span>${r.main}
+      </div>
+      <div class="search-suggestion-sub">${r.sub}</div>
+    </div>
+  `).join("");
+  box.style.display = "block";
+}
+
+function highlightSuggestion(i) {
+  suggestionIndex = i;
+  document.querySelectorAll(".search-suggestion").forEach((el, idx) => {
+    el.classList.toggle("active", idx === i);
+  });
+}
+
+function onSearchKey(e) {
+  const box = document.getElementById("searchSuggestions");
+  const items = box.querySelectorAll(".search-suggestion");
+  if (!items.length) return;
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    suggestionIndex = Math.min(suggestionIndex + 1, items.length - 1);
+    highlightSuggestion(suggestionIndex);
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    suggestionIndex = Math.max(suggestionIndex - 1, 0);
+    highlightSuggestion(suggestionIndex);
+  } else if (e.key === "Enter" && suggestionIndex >= 0) {
+    e.preventDefault();
+    pickSuggestion(items[suggestionIndex]);
+  } else if (e.key === "Escape") {
+    box.style.display = "none";
+  }
+}
+
+function pickSuggestion(el) {
+  const type   = el.dataset.type;
+  const id     = el.dataset.id;
+  const vendor = el.dataset.vendor;
+  const box    = document.getElementById("searchSuggestions");
+  const input  = document.getElementById("searchInput");
+  box.style.display = "none";
+
+  if (id) {
+    // Jump directly to that order
+    input.value = "";
+    renderList();
+    selectOrder(id);
+  } else if (vendor) {
+    // Filter list by vendor name
+    input.value = vendor;
+    renderList();
+  }
+}
+
+// Close suggestions when clicking outside
+document.addEventListener("click", e => {
+  if (!e.target.closest(".sidebar-header")) {
+    const box = document.getElementById("searchSuggestions");
+    if (box) box.style.display = "none";
+  }
+});
 
 // ── APPROVAL ACTIONS ──────────────────────────────────────────────────────────
 function botMsg(o, text) {
