@@ -33,6 +33,30 @@
     --radius-sm: 4px;
     --sidebar-w: 268px;
   }
+  body.dark {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --border: #2d3142;
+    --primary: #4d8eff;
+    --primary-hover: #3a7aff;
+    --primary-light: #1a2a4a;
+    --success-bg: #0d2b1a;
+    --warning-bg: #2b2100;
+    --danger-bg: #2b0d0d;
+    --info-bg: #0d1a2b;
+    --purple-bg: #1a0d2b;
+    --text: #e8eaf0;
+    --text-secondary: #9ba3b8;
+    --text-muted: #5c6480;
+    --shadow: 0 1px 3px rgba(0,0,0,.4), 0 1px 2px rgba(0,0,0,.3);
+    --shadow-md: 0 4px 6px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);
+  }
+  body.dark .topnav { background: linear-gradient(135deg,#0a1628 0%,#0d2b5e 100%); }
+  body.dark .compose-input { background: var(--bg); color: var(--text); }
+  body.dark .form-control { background: var(--bg); color: var(--text); }
+  body.dark .sidebar-search { background: var(--bg); color: var(--text); }
+  body.dark .dash-select { background: var(--bg); color: var(--text); }
+  body.dark input[type="date"] { background: var(--bg); color: var(--text); }
 
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; font-size: 14px; }
 
@@ -298,6 +322,9 @@
     <div style="display:flex;align-items:center;gap:12px">
       <span id="headerName" style="font-size:13px;color:rgba(255,255,255,0.75)"></span>
       <div id="headerAvatar" style="display:none"></div>
+      <button id="darkToggle" onclick="toggleDarkMode()" title="Toggle dark mode" style="background:none;border:none;cursor:pointer;padding:4px;color:rgba(255,255,255,0.7);display:flex;align-items:center" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.7)'">
+        <svg id="darkIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
       <a href="/?signout=1" style="font-size:13px;color:rgba(255,255,255,0.6);text-decoration:none;cursor:pointer" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.6)'">Sign out</a>
     </div>
   </div>
@@ -583,6 +610,26 @@ function applyIdentity() {
   if (archiveChip) archiveChip.style.display = isAccountant() ? "inline-block" : "none";
 }
 
+// ── DARK MODE ─────────────────────────────────────────────────────────────────
+function toggleDarkMode() {
+  const isDark = document.body.classList.toggle("dark");
+  localStorage.setItem("ppDarkMode", isDark ? "1" : "0");
+  updateDarkIcon(isDark);
+}
+function updateDarkIcon(isDark) {
+  const icon = document.getElementById("darkIcon");
+  if (!icon) return;
+  icon.innerHTML = isDark
+    ? '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>'
+    : '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+}
+// Init dark mode from localStorage
+(function() {
+  const dark = localStorage.getItem("ppDarkMode") === "1";
+  if (dark) document.body.classList.add("dark");
+  updateDarkIcon(dark);
+})();
+
 function signOut() {
   localStorage.removeItem("ppCurrentUser");
   localStorage.removeItem("ppCurrentUserId");
@@ -805,12 +852,16 @@ function renderDetail(o) {
         <div class="approval-track">
           <h3>Approval Progress &nbsp;<span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-secondary)">${route.label === "high" ? "3-level (over $5,000)" : "1-level (under $5,000)"}</span></h3>
           <div class="track-steps">
-            ${steps.map((s,i) => `
-              <div class="track-step ${stepState(i)}">
-                <div class="step-dot ${stepState(i)}">${stepIcon(i)}</div>
+            ${steps.map((s,i) => {
+              const state = stepState(i);
+              const dur = state === "done" && o.stepDurations ? o.stepDurations[i-1] : null;
+              return `
+              <div class="track-step ${state}">
+                <div class="step-dot ${state}">${stepIcon(i)}</div>
                 <div class="step-label">${s}</div>
-              </div>
-            `).join("")}
+                ${dur ? `<div class="step-who" title="Completed by ${dur.by} · ${dur.completedAt}">${dur.duration}</div>` : ""}
+              </div>`;
+            }).join("")}
           </div>
         </div>
 
@@ -839,7 +890,10 @@ function renderDetail(o) {
         })() : `
         <div class="action-bar">
           <span style="color:var(--text-muted)">This request has been <strong>${o.status.toLowerCase()}</strong>.</span>
-          ${o.status === "Rejected" ? `<button class="btn btn-primary btn-sm" onclick="openEditModal('${o.id}')">Edit &amp; Resubmit</button>` : ""}
+          ${o.status === "Rejected" ? `
+            <button class="btn btn-primary btn-sm" onclick="openEditModal('${o.id}')">Edit &amp; Resubmit</button>
+            ${isAccountant() ? `<button class="btn btn-ghost btn-sm" onclick="reopenOrder('${o.id}')">Reopen &amp; Reassign</button>` : ""}
+          ` : ""}
         </div>`}
       </div>
 
@@ -1305,6 +1359,9 @@ function skipApprover(id) {
   const confirmed = confirm(`Skip the "${stepName}" approval step?\n\n${approverWho.name} has not approved this step. It will be marked as skipped and logged.\n\nContinue?`);
   if (!confirmed) return;
   const skippedBy = currentUser || "An accountant";
+  if (!o.stepDurations) o.stepDurations = [];
+  o.stepDurations.push({ step: stepName, by: `${skippedBy} (skipped)`, duration: stepDuration(o), completedAt: nowStr() });
+  o.stepStartedAt = new Date().toISOString();
   o.history.push({ action: `${stepName} skipped`, detail: `${approverWho.name}'s step skipped by ${skippedBy}`, time: nowStr(), color: "grey" });
   botMsg(o, `⏭️ ${approverWho.name}'s "${stepName}" step was skipped by ${skippedBy}.`);
   o.approvalStep++;
@@ -1326,6 +1383,17 @@ function skipApprover(id) {
   showToast(`${approverWho.name}'s step skipped`, "warn");
 }
 
+function stepDuration(o) {
+  if (!o.stepStartedAt) return null;
+  const ms = Date.now() - new Date(o.stepStartedAt).getTime();
+  const mins = Math.floor(ms / 60000);
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ${mins % 60}m`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ${hrs % 24}h`;
+}
+
 function approveStep(id) {
   const o = orders.find(x => x.id === id);
   if (!o) return;
@@ -1333,6 +1401,9 @@ function approveStep(id) {
   const stepName = steps[o.approvalStep] || "Step";
   const approverWho = getStepApprover(o);
   const approverName = approverWho ? approverWho.name : "You";
+  if (!o.stepDurations) o.stepDurations = [];
+  o.stepDurations.push({ step: stepName, by: approverName, duration: stepDuration(o), completedAt: nowStr() });
+  o.stepStartedAt = new Date().toISOString();
   o.history.push({action:`${stepName} approved`, detail:`Approved by ${approverName}`, time:nowStr(), color:"green"});
   o.messages.push({id:Date.now(), from:approverName, time:nowStr(), text:`✓ Approved at the "${stepName}" stage.`});
   o.approvalStep++;
@@ -1502,6 +1573,41 @@ function deleteOrder(id) {
   document.getElementById("emptyState").style.display = "flex";
   renderList();
   showToast("Request moved to Archive", "warn");
+}
+
+function reopenOrder(id) {
+  const o = orders.find(x => x.id === id);
+  if (!o) return;
+  const newSubmitter = prompt(`Reassign to a different submitter?\n\nCurrent: ${o.submittedBy}\n\nEnter a name to reassign, or leave blank to keep the current submitter:`)?.trim();
+  const submitter = newSubmitter || o.submittedBy;
+  const reopener = currentUser || "An accountant";
+  o.status = "Pending";
+  o.approvalStep = 1;
+  o.stepStartedAt = new Date().toISOString();
+  if (newSubmitter) o.submittedBy = submitter;
+  o.history.push({ action: "Request reopened", detail: `Reopened by ${reopener}${newSubmitter ? ` · Reassigned to ${submitter}` : ""}`, time: nowStr(), color: "green" });
+  botMsg(o, `🔄 This PO was reopened by ${reopener}${newSubmitter ? ` and reassigned to ${submitter}` : ""}. Waiting for approval from ${getStepApprover(o)?.name || "approver"}.`);
+  updateOrder(o);
+  renderList();
+  renderDetail(o);
+  // DM the submitter
+  const submitterId = SLACK_USERS[submitter] || KNOWN_APPROVERS.find(a => a.name === submitter)?.id;
+  if (submitterId) {
+    fetch("/notify-dm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        channel: submitterId,
+        text: `Prepayment request ${o.id} has been reopened`,
+        blocks: [
+          { type: "header", text: { type: "plain_text", text: "🔄 Request Reopened", emoji: true } },
+          { type: "section", text: { type: "mrkdwn", text: `Hi ${submitter}, prepayment request *${o.id}* for *${o.summary}* (${fmt(o.amount)}) has been reopened by *${reopener}* and is now pending approval again.` } },
+          { type: "actions", elements: [{ type: "button", text: { type: "plain_text", text: "View Request", emoji: true }, style: "primary", url: `${TRACKER_URL}?request=${o.id}` }] }
+        ]
+      }),
+    }).catch(() => {});
+  }
+  showToast(`Request reopened${newSubmitter ? ` · reassigned to ${submitter}` : ""}`, "success");
 }
 
 function rejectOrder(id) {
@@ -1788,7 +1894,7 @@ function createOrder() {
     id, summary, po, amount, orderValue, prepayPct:pct, category, delivery, terms,
     exclusive, vendorReason, benefit, frequency:freqEl.value, skus,
     status:"Pending", submittedBy:currentUser || "You", submittedDate:todayStr,
-    approvalStep:1, unread:0,
+    approvalStep:1, unread:0, stepStartedAt: new Date().toISOString(), stepDurations:[],
     attachments,
     history:[{action:"Request submitted", detail:"Submitted by You", time:nowStr(), color:"grey"}],
     messages:[
